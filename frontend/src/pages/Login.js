@@ -675,15 +675,8 @@ const Login = ({ onLogin }) => {
             <img 
               src="/procare-logo.png" 
               alt="ProCare Hub" 
-              className="w-20 h-20 sm:w-24 sm:h-24 object-contain"
+              className="w-32 h-32 sm:w-40 sm:h-40 object-contain"
             />
-            <div className="mt-3">
-              <span className="text-2xl sm:text-3xl font-bold">
-                <span className="text-emerald-700">Pro</span>
-                <span className="text-teal-500">Care</span>
-                <span className="text-emerald-700"> Hub</span>
-              </span>
-            </div>
           </div>
           <CardDescription className="text-slate-600 text-sm sm:text-base">NDIS Provider Management Platform</CardDescription>
         </CardHeader>
