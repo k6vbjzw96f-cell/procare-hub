@@ -1,0 +1,172 @@
+{
+  "identity": {
+    "persona": "E1: The Anti-AI Designer",
+    "mission": "Create a 'Clinical Organic' aesthetic that balances medical authority with human warmth. Avoid generic SaaS blue/teal.",
+    "principles": [
+      "Fusion: Swiss Precision x Organic Warmth",
+      "Emotion: Trust, Clarity, Care",
+      "Content: Data is the hero, but it must breathe",
+      "Contrast: High contrast for accessibility, soft shadows for depth"
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Manrope, sans-serif",
+      "body": "Inter, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&family=Inter:wght@400;500;600&display=swap');"
+    ],
+    "rules": {
+      "headings": "font-manrope font-bold tracking-tight text-primary-900",
+      "subheadings": "font-manrope font-semibold tracking-normal text-slate-700",
+      "body": "font-inter text-slate-600 leading-relaxed",
+      "labels": "font-inter text-xs font-semibold uppercase tracking-wider text-slate-500"
+    }
+  },
+  "colors": {
+    "palette_name": "Clinical Organic",
+    "description": "A grounded palette using deep forest greens for authority, warm sand for humanity, and muted coral for action.",
+    "primitive_colors": {
+      "forest": {
+        "50": "#f2fcf5",
+        "100": "#e1f8e8",
+        "200": "#c3ecd4",
+        "300": "#94dcb8",
+        "400": "#5dc296",
+        "500": "#36a57b",
+        "600": "#268461",
+        "700": "#206a4f",
+        "800": "#1d5440",
+        "900": "#184536",
+        "950": "#0d271f"
+      },
+      "sand": {
+        "50": "#fbfbf9",
+        "100": "#f5f5f0",
+        "200": "#ebebe3",
+        "300": "#dad9cd",
+        "400": "#bfbead",
+        "500": "#a4a28d",
+        "600": "#84826f",
+        "700": "#6b6959",
+        "800": "#58574a",
+        "900": "#49483e",
+        "950": "#262620"
+      },
+      "coral": {
+        "50": "#fef4f1",
+        "100": "#ffe6df",
+        "200": "#ffd0c3",
+        "300": "#ffaf9b",
+        "400": "#fc8266",
+        "500": "#f25a38",
+        "600": "#e03e1f",
+        "700": "#bc2f15",
+        "800": "#9b2915",
+        "900": "#7e2616",
+        "950": "#441006"
+      }
+    },
+    "semantic_tokens": {
+      "background": "#F8FAFC",
+      "foreground": "#1E293B",
+      "card": "#FFFFFF",
+      "card_foreground": "#1E293B",
+      "primary": "#184536",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#F5F5F0",
+      "secondary_foreground": "#184536",
+      "muted": "#F1F5F9",
+      "muted_foreground": "#64748B",
+      "accent": "#f2fcf5",
+      "accent_foreground": "#184536",
+      "destructive": "#EF4444",
+      "destructive_foreground": "#FFFFFF",
+      "border": "#E2E8F0",
+      "input": "#E2E8F0",
+      "ring": "#184536"
+    }
+  },
+  "layout": {
+    "spacing_scale": "Tailwind (p-1 to p-32)",
+    "container_padding": "p-6 md:p-8 lg:p-12",
+    "grid_system": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+      "form": "grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"
+    },
+    "border_radius": {
+      "card": "rounded-xl",
+      "button": "rounded-lg",
+      "input": "rounded-lg"
+    }
+  },
+  "components": {
+    "Shadcn": {
+      "Button": {
+        "default": "bg-primary text-white hover:bg-primary/90 shadow-sm font-medium",
+        "outline": "border-2 border-primary/20 bg-transparent hover:bg-primary/5 text-primary",
+        "ghost": "hover:bg-primary/5 text-primary-700"
+      },
+      "Card": {
+        "style": "bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] transition-all duration-300"
+      },
+      "Input": {
+        "style": "bg-white border-slate-200 focus:border-primary focus:ring-primary/20 h-11"
+      },
+      "Table": {
+        "style": "w-full text-sm",
+        "header": "bg-slate-50/50 text-slate-500 font-medium uppercase tracking-wider text-xs h-12",
+        "row": "border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+      }
+    },
+    "Custom": {
+      "StatCard": "p-6 bg-white rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2 relative overflow-hidden",
+      "StatusBadge": {
+        "success": "bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 rounded-full text-xs font-medium",
+        "warning": "bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-0.5 rounded-full text-xs font-medium",
+        "error": "bg-rose-50 text-rose-700 border border-rose-100 px-2.5 py-0.5 rounded-full text-xs font-medium",
+        "neutral": "bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 rounded-full text-xs font-medium"
+      }
+    }
+  },
+  "assets": {
+    "images": {
+      "avatars": [
+        "https://images.pexels.com/photos/5207098/pexels-photo-5207098.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.pexels.com/photos/4270366/pexels-photo-4270366.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.unsplash.com/photo-1758691462638-c60c83bd7310?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwd29ya2VyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc0MDY1OTA4fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1758204054877-fb1c7ba85ea1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwd29ya2VyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc0MDY1OTA4fDA&ixlib=rb-4.1.0&q=85"
+      ],
+      "clients": [
+        "https://images.pexels.com/photos/3831612/pexels-photo-3831612.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.pexels.com/photos/3782194/pexels-photo-3782194.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.unsplash.com/photo-1758686254563-5c5ab338c8b9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwzfHxoYXBweSUyMGVsZGVybHklMjBwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NzQwNjU5MTF8MA&ixlib=rb-4.1.0&q=85"
+      ]
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width: 1.5px; size: 16px or 20px"
+    }
+  },
+  "motion": {
+    "default_transition": "transition-all duration-200 ease-in-out",
+    "hover_lift": "hover:-translate-y-0.5",
+    "accordion": "data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up"
+  },
+  "accessibility": {
+    "contrast_ratio": "Ensure 4.5:1 for normal text",
+    "interactive_elements": "Must have :focus-visible styles (ring-2 ring-primary ring-offset-2)",
+    "prefers_reduced_motion": "Respect user settings via tailwind motion-safe utility"
+  },
+  "universal_guidelines": [
+    "Do NOT use gradients for backgrounds, use solid colors or subtle patterns.",
+    "Use 'sonner' for all toast notifications.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Dark colors look good when used independently without gradients.",
+    "Do not center align the app container.",
+    "Use 2-3x more spacing than typical designs."
+  ],
+  "instructions_to_main_agent": "Implement the ProCare Hub using the 'Clinical Organic' theme. Use the defined color palette and typography. Ensure all pages (Dashboard, Rostering, Clients, etc.) follow the layout rules. Use the provided image URLs for avatars and placeholders. STRICTLY avoid the forbidden teal color and generic Inter headings."
+}
