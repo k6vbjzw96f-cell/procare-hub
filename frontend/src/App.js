@@ -23,6 +23,7 @@ import ComplianceCalendar from '@/pages/ComplianceCalendar';
 import Feedback from '@/pages/Feedback';
 import Documents from '@/pages/Documents';
 import TeamAvailability from '@/pages/TeamAvailability';
+import HR from '@/pages/HR';
 import Layout from '@/components/Layout';
 import '@/App.css';
 
@@ -83,6 +84,7 @@ function App() {
                     <Route path="/clients" element={<Clients />} />
                     <Route path="/staff" element={<Staff />} />
                     <Route path="/team-availability" element={<TeamAvailability />} />
+                    <Route path="/hr" element={<HR />} />
                     <Route path="/rostering" element={<Rostering />} />
                     <Route path="/hours" element={<HourLogging />} />
                     <Route path="/vehicles" element={<Vehicles />} />

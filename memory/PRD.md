@@ -12,6 +12,13 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - **Staff Management**: Staff records with certifications, clock-in/out, **break tracking**, photo uploads
 - **Rostering & Scheduling**: Shift management and assignment
 - **Team Availability**: View staff schedules, day/week views, set availability per day
+- **HR Module** (NEW):
+  - Employee Onboarding (checklists, task tracking)
+  - Performance Reviews (scheduling, ratings, acknowledgment)
+  - Training & Certifications (courses, assignments, expiry tracking)
+  - Employee Documents (contract storage)
+  - Payroll (hours calculation, approval workflow)
+  - Employee Directory (contact info, org structure)
 - **Leave Management**: Leave requests with approval workflow
 - **Invoicing**: Create and manage invoices with line items
 - **Compliance Tracking**: Incident reporting and compliance records

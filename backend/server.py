@@ -3129,6 +3129,846 @@ async def signwell_webhook(event: dict):
     
     return {"status": "processed"}
 
+# ============================================
+# HR MODULE - MODELS
+# ============================================
+
+# Onboarding Models
+class OnboardingTask(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    category: str  # documentation, training, equipment, access
+    required: bool = True
+    order: int = 0
+
+class OnboardingChecklist(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    start_date: str
+    target_completion_date: str
+    status: str = "in_progress"  # in_progress, completed, overdue
+    tasks: List[dict] = []  # [{task_id, name, completed, completed_at, completed_by}]
+    progress_percentage: int = 0
+    assigned_by: str
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Performance Review Models
+class PerformanceReview(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    reviewer_id: str
+    reviewer_name: str
+    review_period_start: str
+    review_period_end: str
+    review_type: str  # annual, probation, quarterly, adhoc
+    status: str = "scheduled"  # scheduled, in_progress, pending_acknowledgment, completed
+    scheduled_date: str
+    completed_date: Optional[str] = None
+    overall_rating: Optional[int] = None  # 1-5
+    ratings: List[dict] = []  # [{category, rating, comments}]
+    strengths: Optional[str] = None
+    areas_for_improvement: Optional[str] = None
+    goals_for_next_period: Optional[str] = None
+    employee_comments: Optional[str] = None
+    employee_acknowledged: bool = False
+    employee_acknowledged_at: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PerformanceReviewCreate(BaseModel):
+    staff_id: str
+    review_period_start: str
+    review_period_end: str
+    review_type: str
+    scheduled_date: str
+
+# Training & Certification Models
+class TrainingCourse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    category: str  # mandatory, compliance, professional_development, safety
+    provider: Optional[str] = None
+    duration_hours: Optional[float] = None
+    validity_months: Optional[int] = None  # How long certification is valid
+    is_mandatory: bool = False
+    active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StaffTraining(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    course_id: str
+    course_name: str
+    status: str = "assigned"  # assigned, in_progress, completed, expired
+    assigned_date: str
+    due_date: Optional[str] = None
+    completed_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    certificate_url: Optional[str] = None
+    score: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Employee Documents Models
+class EmployeeDocument(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    document_type: str  # contract, policy, certification, identification, other
+    name: str
+    description: Optional[str] = None
+    file_url: str
+    file_name: str
+    file_size: Optional[int] = None
+    expiry_date: Optional[str] = None
+    is_signed: bool = False
+    signed_date: Optional[str] = None
+    uploaded_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Payroll Models
+class PayrollRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    pay_period_start: str
+    pay_period_end: str
+    regular_hours: float = 0
+    overtime_hours: float = 0
+    break_hours: float = 0
+    hourly_rate: float
+    overtime_rate: float
+    gross_pay: float
+    deductions: float = 0
+    net_pay: float
+    status: str = "pending"  # pending, approved, paid
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    paid_at: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ============================================
+# HR MODULE - ONBOARDING ROUTES
+# ============================================
+
+@api_router.get("/hr/onboarding/tasks")
+async def get_onboarding_tasks(current_user: User = Depends(get_current_user)):
+    """Get default onboarding task templates"""
+    tasks = await db.onboarding_tasks.find({"active": True}, {"_id": 0}).sort("order", 1).to_list(100)
+    
+    # Create default tasks if none exist
+    if not tasks:
+        default_tasks = [
+            OnboardingTask(name="Complete employment contract", description="Sign and return employment contract", category="documentation", order=1),
+            OnboardingTask(name="Submit identification documents", description="Provide ID and right to work documents", category="documentation", order=2),
+            OnboardingTask(name="Complete tax declaration", description="Submit tax file number declaration", category="documentation", order=3),
+            OnboardingTask(name="NDIS Worker Screening Check", description="Complete and submit worker screening application", category="compliance", order=4),
+            OnboardingTask(name="First Aid Certificate", description="Provide current first aid certificate", category="compliance", order=5),
+            OnboardingTask(name="NDIS Orientation Module", description="Complete NDIS Worker Orientation Module", category="training", order=6),
+            OnboardingTask(name="Manual Handling Training", description="Complete manual handling training", category="training", order=7),
+            OnboardingTask(name="Medication Administration Training", description="Complete medication administration training", category="training", order=8),
+            OnboardingTask(name="IT System Access Setup", description="Setup email, software access, and login credentials", category="access", order=9),
+            OnboardingTask(name="Uniform and Equipment", description="Collect uniform and required equipment", category="equipment", order=10),
+        ]
+        
+        for task in default_tasks:
+            doc = task.model_dump()
+            doc['created_at'] = datetime.now(timezone.utc).isoformat()
+            doc['active'] = True
+            await db.onboarding_tasks.insert_one(doc)
+        
+        tasks = [t.model_dump() for t in default_tasks]
+    
+    return tasks
+
+@api_router.post("/hr/onboarding/checklist")
+async def create_onboarding_checklist(staff_id: str, target_days: int = 30, current_user: User = Depends(get_current_user)):
+    """Create an onboarding checklist for a new staff member"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    # Check if checklist already exists
+    existing = await db.onboarding_checklists.find_one({"staff_id": staff_id}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Onboarding checklist already exists for this staff member")
+    
+    # Get task templates
+    task_templates = await db.onboarding_tasks.find({"active": True}, {"_id": 0}).sort("order", 1).to_list(100)
+    
+    tasks = []
+    for t in task_templates:
+        tasks.append({
+            "task_id": t['id'],
+            "name": t['name'],
+            "description": t.get('description', ''),
+            "category": t.get('category', 'other'),
+            "completed": False,
+            "completed_at": None,
+            "completed_by": None
+        })
+    
+    today = datetime.now(timezone.utc).date()
+    target_date = today + timedelta(days=target_days)
+    
+    checklist = OnboardingChecklist(
+        staff_id=staff_id,
+        staff_name=staff['full_name'],
+        start_date=today.isoformat(),
+        target_completion_date=target_date.isoformat(),
+        tasks=tasks,
+        assigned_by=current_user.full_name
+    )
+    
+    doc = checklist.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.onboarding_checklists.insert_one(doc)
+    
+    return checklist
+
+@api_router.get("/hr/onboarding/checklists")
+async def get_onboarding_checklists(status: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get all onboarding checklists"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    checklists = await db.onboarding_checklists.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    for c in checklists:
+        if isinstance(c.get('created_at'), str):
+            c['created_at'] = datetime.fromisoformat(c['created_at'])
+    
+    return checklists
+
+@api_router.get("/hr/onboarding/checklist/{staff_id}")
+async def get_staff_onboarding_checklist(staff_id: str, current_user: User = Depends(get_current_user)):
+    """Get onboarding checklist for a specific staff member"""
+    checklist = await db.onboarding_checklists.find_one({"staff_id": staff_id}, {"_id": 0})
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Onboarding checklist not found")
+    
+    if isinstance(checklist.get('created_at'), str):
+        checklist['created_at'] = datetime.fromisoformat(checklist['created_at'])
+    
+    return checklist
+
+@api_router.put("/hr/onboarding/checklist/{checklist_id}/task/{task_id}")
+async def complete_onboarding_task(checklist_id: str, task_id: str, completed: bool = True, current_user: User = Depends(get_current_user)):
+    """Mark an onboarding task as complete/incomplete"""
+    checklist = await db.onboarding_checklists.find_one({"id": checklist_id}, {"_id": 0})
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+    
+    tasks = checklist.get("tasks", [])
+    task_found = False
+    completed_count = 0
+    
+    for task in tasks:
+        if task["task_id"] == task_id:
+            task["completed"] = completed
+            task["completed_at"] = datetime.now(timezone.utc).isoformat() if completed else None
+            task["completed_by"] = current_user.full_name if completed else None
+            task_found = True
+        if task.get("completed"):
+            completed_count += 1
+    
+    if not task_found:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    progress = int((completed_count / len(tasks)) * 100) if tasks else 0
+    status = "completed" if progress == 100 else "in_progress"
+    
+    await db.onboarding_checklists.update_one(
+        {"id": checklist_id},
+        {"$set": {"tasks": tasks, "progress_percentage": progress, "status": status}}
+    )
+    
+    return {"message": "Task updated", "progress": progress, "status": status}
+
+# ============================================
+# HR MODULE - PERFORMANCE REVIEWS ROUTES
+# ============================================
+
+@api_router.post("/hr/reviews")
+async def create_performance_review(review_data: PerformanceReviewCreate, current_user: User = Depends(get_current_user)):
+    """Create a new performance review"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    staff = await db.staff.find_one({"id": review_data.staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    # Default rating categories
+    rating_categories = [
+        {"category": "Job Knowledge", "rating": None, "comments": ""},
+        {"category": "Quality of Work", "rating": None, "comments": ""},
+        {"category": "Communication", "rating": None, "comments": ""},
+        {"category": "Teamwork", "rating": None, "comments": ""},
+        {"category": "Reliability", "rating": None, "comments": ""},
+        {"category": "Initiative", "rating": None, "comments": ""},
+        {"category": "Client Care", "rating": None, "comments": ""},
+    ]
+    
+    review = PerformanceReview(
+        staff_id=review_data.staff_id,
+        staff_name=staff['full_name'],
+        reviewer_id=current_user.id,
+        reviewer_name=current_user.full_name,
+        review_period_start=review_data.review_period_start,
+        review_period_end=review_data.review_period_end,
+        review_type=review_data.review_type,
+        scheduled_date=review_data.scheduled_date,
+        ratings=rating_categories
+    )
+    
+    doc = review.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.performance_reviews.insert_one(doc)
+    
+    return review
+
+@api_router.get("/hr/reviews")
+async def get_performance_reviews(staff_id: Optional[str] = None, status: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get performance reviews"""
+    query = {}
+    if staff_id:
+        query["staff_id"] = staff_id
+    if status:
+        query["status"] = status
+    
+    reviews = await db.performance_reviews.find(query, {"_id": 0}).sort("scheduled_date", -1).to_list(100)
+    
+    for r in reviews:
+        if isinstance(r.get('created_at'), str):
+            r['created_at'] = datetime.fromisoformat(r['created_at'])
+    
+    return reviews
+
+@api_router.get("/hr/reviews/{review_id}")
+async def get_performance_review(review_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific performance review"""
+    review = await db.performance_reviews.find_one({"id": review_id}, {"_id": 0})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    if isinstance(review.get('created_at'), str):
+        review['created_at'] = datetime.fromisoformat(review['created_at'])
+    
+    return review
+
+@api_router.put("/hr/reviews/{review_id}")
+async def update_performance_review(review_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
+    """Update a performance review"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    review = await db.performance_reviews.find_one({"id": review_id}, {"_id": 0})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    # Calculate overall rating if ratings provided
+    if "ratings" in update_data:
+        ratings_with_values = [r["rating"] for r in update_data["ratings"] if r.get("rating")]
+        if ratings_with_values:
+            update_data["overall_rating"] = round(sum(ratings_with_values) / len(ratings_with_values), 1)
+    
+    # Check if completing the review
+    if update_data.get("status") == "completed" or update_data.get("status") == "pending_acknowledgment":
+        update_data["completed_date"] = datetime.now(timezone.utc).date().isoformat()
+    
+    await db.performance_reviews.update_one(
+        {"id": review_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Review updated"}
+
+@api_router.put("/hr/reviews/{review_id}/acknowledge")
+async def acknowledge_review(review_id: str, comments: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Employee acknowledges their performance review"""
+    review = await db.performance_reviews.find_one({"id": review_id}, {"_id": 0})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    update_data = {
+        "employee_acknowledged": True,
+        "employee_acknowledged_at": datetime.now(timezone.utc).isoformat(),
+        "status": "completed"
+    }
+    
+    if comments:
+        update_data["employee_comments"] = comments
+    
+    await db.performance_reviews.update_one(
+        {"id": review_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Review acknowledged"}
+
+# ============================================
+# HR MODULE - TRAINING & CERTIFICATIONS ROUTES
+# ============================================
+
+@api_router.get("/hr/training/courses")
+async def get_training_courses(category: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get available training courses"""
+    query = {"active": True}
+    if category:
+        query["category"] = category
+    
+    courses = await db.training_courses.find(query, {"_id": 0}).sort("name", 1).to_list(100)
+    
+    # Create default courses if none exist
+    if not courses:
+        default_courses = [
+            TrainingCourse(name="NDIS Worker Orientation Module", description="Mandatory NDIS worker orientation", category="mandatory", provider="NDIS Commission", duration_hours=1.5, validity_months=None, is_mandatory=True),
+            TrainingCourse(name="First Aid & CPR", description="First aid and CPR certification", category="compliance", provider="Various", duration_hours=8, validity_months=36, is_mandatory=True),
+            TrainingCourse(name="Manual Handling", description="Safe manual handling techniques", category="safety", provider="Internal", duration_hours=4, validity_months=24, is_mandatory=True),
+            TrainingCourse(name="Medication Administration", description="Safe medication administration", category="compliance", provider="Internal", duration_hours=6, validity_months=24, is_mandatory=True),
+            TrainingCourse(name="Infection Control", description="Infection prevention and control", category="safety", provider="Internal", duration_hours=2, validity_months=12, is_mandatory=True),
+            TrainingCourse(name="Positive Behaviour Support", description="PBS fundamentals", category="professional_development", provider="External", duration_hours=8, validity_months=None, is_mandatory=False),
+            TrainingCourse(name="Mental Health First Aid", description="Mental health awareness and support", category="professional_development", provider="Mental Health First Aid Australia", duration_hours=12, validity_months=36, is_mandatory=False),
+        ]
+        
+        for course in default_courses:
+            doc = course.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.training_courses.insert_one(doc)
+        
+        courses = [c.model_dump() for c in default_courses]
+    
+    for c in courses:
+        if isinstance(c.get('created_at'), str):
+            c['created_at'] = datetime.fromisoformat(c['created_at'])
+    
+    return courses
+
+@api_router.post("/hr/training/courses")
+async def create_training_course(course_data: dict, current_user: User = Depends(get_current_user)):
+    """Create a new training course"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    course = TrainingCourse(**course_data)
+    doc = course.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.training_courses.insert_one(doc)
+    
+    return course
+
+@api_router.post("/hr/training/assign")
+async def assign_training(staff_id: str, course_id: str, due_date: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Assign a training course to a staff member"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    course = await db.training_courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Check if already assigned
+    existing = await db.staff_training.find_one({
+        "staff_id": staff_id,
+        "course_id": course_id,
+        "status": {"$in": ["assigned", "in_progress"]}
+    }, {"_id": 0})
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Training already assigned")
+    
+    training = StaffTraining(
+        staff_id=staff_id,
+        staff_name=staff['full_name'],
+        course_id=course_id,
+        course_name=course['name'],
+        assigned_date=datetime.now(timezone.utc).date().isoformat(),
+        due_date=due_date
+    )
+    
+    doc = training.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.staff_training.insert_one(doc)
+    
+    return training
+
+@api_router.get("/hr/training/staff/{staff_id}")
+async def get_staff_training(staff_id: str, current_user: User = Depends(get_current_user)):
+    """Get training records for a staff member"""
+    training = await db.staff_training.find({"staff_id": staff_id}, {"_id": 0}).sort("assigned_date", -1).to_list(100)
+    
+    for t in training:
+        if isinstance(t.get('created_at'), str):
+            t['created_at'] = datetime.fromisoformat(t['created_at'])
+    
+    return training
+
+@api_router.put("/hr/training/{training_id}/complete")
+async def complete_training(training_id: str, score: Optional[float] = None, certificate_url: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Mark training as complete"""
+    training = await db.staff_training.find_one({"id": training_id}, {"_id": 0})
+    if not training:
+        raise HTTPException(status_code=404, detail="Training record not found")
+    
+    course = await db.training_courses.find_one({"id": training['course_id']}, {"_id": 0})
+    
+    completed_date = datetime.now(timezone.utc).date()
+    expiry_date = None
+    
+    if course and course.get('validity_months'):
+        expiry_date = (completed_date + timedelta(days=course['validity_months'] * 30)).isoformat()
+    
+    update_data = {
+        "status": "completed",
+        "completed_date": completed_date.isoformat(),
+        "expiry_date": expiry_date
+    }
+    
+    if score is not None:
+        update_data["score"] = score
+    if certificate_url:
+        update_data["certificate_url"] = certificate_url
+    
+    await db.staff_training.update_one(
+        {"id": training_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Training completed", "expiry_date": expiry_date}
+
+@api_router.get("/hr/training/expiring")
+async def get_expiring_certifications(days: int = 30, current_user: User = Depends(get_current_user)):
+    """Get certifications expiring within specified days"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    cutoff_date = (datetime.now(timezone.utc).date() + timedelta(days=days)).isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    expiring = await db.staff_training.find({
+        "status": "completed",
+        "expiry_date": {"$ne": None, "$lte": cutoff_date, "$gte": today}
+    }, {"_id": 0}).to_list(100)
+    
+    for t in expiring:
+        if isinstance(t.get('created_at'), str):
+            t['created_at'] = datetime.fromisoformat(t['created_at'])
+    
+    return expiring
+
+# ============================================
+# HR MODULE - EMPLOYEE DOCUMENTS ROUTES
+# ============================================
+
+@api_router.post("/hr/documents")
+async def upload_employee_document(
+    staff_id: str,
+    document_type: str,
+    name: str,
+    file_url: str,
+    file_name: str,
+    description: Optional[str] = None,
+    expiry_date: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Upload/add an employee document"""
+    staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    document = EmployeeDocument(
+        staff_id=staff_id,
+        staff_name=staff['full_name'],
+        document_type=document_type,
+        name=name,
+        description=description,
+        file_url=file_url,
+        file_name=file_name,
+        expiry_date=expiry_date,
+        uploaded_by=current_user.full_name
+    )
+    
+    doc = document.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.employee_documents.insert_one(doc)
+    
+    return document
+
+@api_router.get("/hr/documents/staff/{staff_id}")
+async def get_staff_documents(staff_id: str, document_type: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get documents for a staff member"""
+    query = {"staff_id": staff_id}
+    if document_type:
+        query["document_type"] = document_type
+    
+    documents = await db.employee_documents.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    for d in documents:
+        if isinstance(d.get('created_at'), str):
+            d['created_at'] = datetime.fromisoformat(d['created_at'])
+    
+    return documents
+
+@api_router.delete("/hr/documents/{document_id}")
+async def delete_employee_document(document_id: str, current_user: User = Depends(get_current_user)):
+    """Delete an employee document"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    result = await db.employee_documents.delete_one({"id": document_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"message": "Document deleted"}
+
+# ============================================
+# HR MODULE - PAYROLL ROUTES
+# ============================================
+
+@api_router.post("/hr/payroll/generate")
+async def generate_payroll(pay_period_start: str, pay_period_end: str, current_user: User = Depends(get_current_user)):
+    """Generate payroll records for all active staff"""
+    check_permission(current_user, ["admin"])
+    
+    staff_list = await db.staff.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    
+    payroll_records = []
+    
+    for staff in staff_list:
+        # Get attendance records for the period
+        attendance = await db.staff_attendance.find({
+            "staff_id": staff['id'],
+            "attendance_date": {"$gte": pay_period_start, "$lte": pay_period_end}
+        }, {"_id": 0}).to_list(100)
+        
+        # Calculate hours
+        regular_hours = 0
+        for a in attendance:
+            if a.get('total_hours'):
+                regular_hours += a['total_hours']
+        
+        # Get breaks for the period
+        breaks = await db.staff_breaks.find({
+            "staff_id": staff['id'],
+            "break_date": {"$gte": pay_period_start, "$lte": pay_period_end}
+        }, {"_id": 0}).to_list(1000)
+        
+        break_hours = sum(b.get('duration_minutes', 0) for b in breaks) / 60
+        
+        hourly_rate = staff.get('hourly_rate', 30)
+        overtime_rate = hourly_rate * 1.5
+        overtime_hours = max(0, regular_hours - 38)  # Overtime after 38 hours
+        regular_hours = min(regular_hours, 38)
+        
+        gross_pay = (regular_hours * hourly_rate) + (overtime_hours * overtime_rate)
+        net_pay = gross_pay  # Simplified - no deductions calculated
+        
+        payroll = PayrollRecord(
+            staff_id=staff['id'],
+            staff_name=staff['full_name'],
+            pay_period_start=pay_period_start,
+            pay_period_end=pay_period_end,
+            regular_hours=round(regular_hours, 2),
+            overtime_hours=round(overtime_hours, 2),
+            break_hours=round(break_hours, 2),
+            hourly_rate=hourly_rate,
+            overtime_rate=overtime_rate,
+            gross_pay=round(gross_pay, 2),
+            net_pay=round(net_pay, 2)
+        )
+        
+        doc = payroll.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.payroll_records.insert_one(doc)
+        payroll_records.append(payroll)
+    
+    return {"message": f"Generated {len(payroll_records)} payroll records", "records": payroll_records}
+
+@api_router.get("/hr/payroll")
+async def get_payroll_records(pay_period_start: Optional[str] = None, staff_id: Optional[str] = None, status: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get payroll records"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    query = {}
+    if pay_period_start:
+        query["pay_period_start"] = pay_period_start
+    if staff_id:
+        query["staff_id"] = staff_id
+    if status:
+        query["status"] = status
+    
+    records = await db.payroll_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    for r in records:
+        if isinstance(r.get('created_at'), str):
+            r['created_at'] = datetime.fromisoformat(r['created_at'])
+    
+    return records
+
+@api_router.put("/hr/payroll/{record_id}/approve")
+async def approve_payroll(record_id: str, current_user: User = Depends(get_current_user)):
+    """Approve a payroll record"""
+    check_permission(current_user, ["admin"])
+    
+    await db.payroll_records.update_one(
+        {"id": record_id},
+        {"$set": {
+            "status": "approved",
+            "approved_by": current_user.full_name,
+            "approved_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"message": "Payroll approved"}
+
+@api_router.put("/hr/payroll/{record_id}/pay")
+async def mark_payroll_paid(record_id: str, current_user: User = Depends(get_current_user)):
+    """Mark payroll as paid"""
+    check_permission(current_user, ["admin"])
+    
+    await db.payroll_records.update_one(
+        {"id": record_id},
+        {"$set": {
+            "status": "paid",
+            "paid_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"message": "Payroll marked as paid"}
+
+# ============================================
+# HR MODULE - EMPLOYEE DIRECTORY ROUTES
+# ============================================
+
+@api_router.get("/hr/directory")
+async def get_employee_directory(department: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get employee directory with contact info"""
+    query = {"status": "active"}
+    if department:
+        query["department"] = department
+    
+    staff = await db.staff.find(query, {"_id": 0}).sort("full_name", 1).to_list(1000)
+    
+    directory = []
+    for s in staff:
+        directory.append({
+            "id": s['id'],
+            "full_name": s['full_name'],
+            "email": s.get('email', ''),
+            "phone": s.get('phone', ''),
+            "position": s.get('position', ''),
+            "department": s.get('department', 'General'),
+            "photo_url": s.get('photo_url'),
+            "start_date": s.get('start_date'),
+            "reports_to": s.get('reports_to'),
+        })
+    
+    return directory
+
+@api_router.get("/hr/org-chart")
+async def get_org_chart(current_user: User = Depends(get_current_user)):
+    """Get organizational chart data"""
+    staff = await db.staff.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    
+    # Build org chart structure
+    org_chart = {
+        "id": "org",
+        "name": "ProCare Hub",
+        "position": "Organization",
+        "children": []
+    }
+    
+    # Group by department/position
+    admins = [s for s in staff if s.get('position', '').lower() in ['admin', 'administrator', 'manager']]
+    coordinators = [s for s in staff if s.get('position', '').lower() in ['coordinator', 'service coordinator', 'team leader']]
+    support_workers = [s for s in staff if s.get('position', '').lower() in ['support worker', 'support staff', 'carer']]
+    
+    if admins:
+        admin_node = {"id": "admins", "name": "Administration", "position": "Management", "children": []}
+        for a in admins:
+            admin_node["children"].append({
+                "id": a['id'],
+                "name": a['full_name'],
+                "position": a.get('position', ''),
+                "photo_url": a.get('photo_url'),
+                "children": []
+            })
+        org_chart["children"].append(admin_node)
+    
+    if coordinators:
+        coord_node = {"id": "coordinators", "name": "Service Coordination", "position": "Coordination", "children": []}
+        for c in coordinators:
+            coord_node["children"].append({
+                "id": c['id'],
+                "name": c['full_name'],
+                "position": c.get('position', ''),
+                "photo_url": c.get('photo_url'),
+                "children": []
+            })
+        org_chart["children"].append(coord_node)
+    
+    if support_workers:
+        sw_node = {"id": "support", "name": "Support Team", "position": "Service Delivery", "children": []}
+        for sw in support_workers:
+            sw_node["children"].append({
+                "id": sw['id'],
+                "name": sw['full_name'],
+                "position": sw.get('position', ''),
+                "photo_url": sw.get('photo_url'),
+                "children": []
+            })
+        org_chart["children"].append(sw_node)
+    
+    return org_chart
+
+@api_router.get("/hr/stats")
+async def get_hr_stats(current_user: User = Depends(get_current_user)):
+    """Get HR dashboard statistics"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    # Staff counts
+    total_staff = await db.staff.count_documents({"status": "active"})
+    
+    # Onboarding
+    onboarding_in_progress = await db.onboarding_checklists.count_documents({"status": "in_progress"})
+    
+    # Reviews
+    pending_reviews = await db.performance_reviews.count_documents({"status": {"$in": ["scheduled", "in_progress"]}})
+    
+    # Expiring certifications (next 30 days)
+    cutoff_date = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
+    expiring_certs = await db.staff_training.count_documents({
+        "status": "completed",
+        "expiry_date": {"$ne": None, "$lte": cutoff_date, "$gte": today}
+    })
+    
+    # Pending payroll
+    pending_payroll = await db.payroll_records.count_documents({"status": "pending"})
+    
+    return {
+        "total_staff": total_staff,
+        "onboarding_in_progress": onboarding_in_progress,
+        "pending_reviews": pending_reviews,
+        "expiring_certifications": expiring_certs,
+        "pending_payroll": pending_payroll
+    }
+
 # Startup event
 @app.on_event("startup")
 async def startup():
