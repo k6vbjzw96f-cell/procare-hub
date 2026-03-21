@@ -128,7 +128,7 @@ const Rostering = () => {
               Schedule Shift
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Schedule New Shift</DialogTitle>
               <DialogDescription>Assign staff to client shifts</DialogDescription>

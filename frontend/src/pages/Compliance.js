@@ -123,7 +123,7 @@ const Compliance = () => {
               Report Issue
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Create Compliance Record</DialogTitle>
               <DialogDescription>Report incidents, audits, or compliance issues</DialogDescription>
