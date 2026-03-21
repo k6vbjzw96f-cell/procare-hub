@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import Clients from '@/pages/Clients';
@@ -25,6 +26,8 @@ import Documents from '@/pages/Documents';
 import TeamAvailability from '@/pages/TeamAvailability';
 import HR from '@/pages/HR';
 import Layout from '@/components/Layout';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import * as serviceWorkerRegistration from '@/serviceWorkerRegistration';
 import '@/App.css';
 
 function App() {
@@ -40,6 +43,26 @@ function App() {
       setUser(JSON.parse(userData));
     }
     setLoading(false);
+
+    // Register service worker
+    serviceWorkerRegistration.register();
+
+    // Listen for service worker updates
+    const handleUpdate = () => {
+      toast.info('A new version is available!', {
+        action: {
+          label: 'Update',
+          onClick: () => window.location.reload()
+        },
+        duration: 10000
+      });
+    };
+
+    window.addEventListener('swUpdate', handleUpdate);
+
+    return () => {
+      window.removeEventListener('swUpdate', handleUpdate);
+    };
   }, []);
 
   const handleLogin = (token, userData) => {
@@ -124,6 +147,7 @@ function App() {
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />
+      <PWAInstallPrompt />
     </div>
   );
 }

@@ -1,0 +1,49 @@
+{
+  "short_name": "ProCare Hub",
+  "name": "ProCare Hub - NDIS Provider Management",
+  "description": "Comprehensive NDIS Provider Management Platform for disability service providers",
+  "icons": [
+    {
+      "src": "procare-logo.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "procare-logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#184536",
+  "background_color": "#f8fafc",
+  "orientation": "any",
+  "scope": "/",
+  "categories": ["business", "productivity", "medical"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View your dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "procare-logo.jpeg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Clients",
+      "short_name": "Clients",
+      "description": "Manage clients",
+      "url": "/clients",
+      "icons": [{ "src": "procare-logo.jpeg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Staff",
+      "short_name": "Staff",
+      "description": "Manage staff",
+      "url": "/staff",
+      "icons": [{ "src": "procare-logo.jpeg", "sizes": "192x192" }]
+    }
+  ]
+}

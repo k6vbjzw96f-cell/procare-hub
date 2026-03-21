@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#184536">
+  <title>Offline - ProCare Hub</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 50%, #ecfdf5 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .offline-container {
+      text-align: center;
+      max-width: 400px;
+      background: white;
+      padding: 40px 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 24px;
+      border-radius: 12px;
+    }
+    
+    .offline-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    
+    h1 {
+      color: #184536;
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+    
+    p {
+      color: #64748b;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    
+    .retry-btn {
+      background: #184536;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .retry-btn:hover {
+      background: #0f2d23;
+      transform: translateY(-1px);
+    }
+    
+    .retry-btn:active {
+      transform: translateY(0);
+    }
+    
+    .status {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    
+    .status.online {
+      color: #22c55e;
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-container">
+    <img src="/procare-logo.jpeg" alt="ProCare Hub" class="logo">
+    <div class="offline-icon">📡</div>
+    <h1>You're Offline</h1>
+    <p>It looks like you've lost your internet connection. Please check your network and try again.</p>
+    <button class="retry-btn" onclick="checkConnection()">
+      Try Again
+    </button>
+    <p class="status" id="status">Waiting for connection...</p>
+  </div>
+
+  <script>
+    function checkConnection() {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = 'Checking connection...';
+      
+      fetch('/api/health', { method: 'HEAD', cache: 'no-store' })
+        .then(() => {
+          statusEl.textContent = 'Connected! Redirecting...';
+          statusEl.classList.add('online');
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+        })
+        .catch(() => {
+          statusEl.textContent = 'Still offline. Please check your connection.';
+          statusEl.classList.remove('online');
+        });
+    }
+
+    // Auto-check connection when online event fires
+    window.addEventListener('online', () => {
+      checkConnection();
+    });
+
+    // Update status on load
+    if (navigator.onLine) {
+      checkConnection();
+    }
+  </script>
+</body>
+</html>

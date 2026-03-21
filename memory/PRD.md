@@ -77,6 +77,7 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
 - **File Storage**: Emergent Object Storage
+- **PWA**: Progressive Web App with offline support ✅
 
 ## API Endpoints Summary
 - Authentication: /api/auth/register, /api/auth/login, /api/auth/forgot-password, /api/auth/reset-password
