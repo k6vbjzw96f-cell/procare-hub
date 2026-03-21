@@ -4,6 +4,8 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import LandingPage from '@/pages/LandingPage';
 import Login from '@/pages/Login';
+import Privacy from '@/pages/Privacy';
+import Terms from '@/pages/Terms';
 import Dashboard from '@/pages/Dashboard';
 import Clients from '@/pages/Clients';
 import Staff from '@/pages/Staff';
@@ -120,6 +122,9 @@ function App() {
               )
             }
           />
+          {/* Public pages - Privacy and Terms */}
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
           {/* Protected Routes */}
           <Route
             path="/*"

@@ -36,6 +36,10 @@ EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
 APP_NAME = "procare-hub"
 storage_key = None
 
+# Xero Integration
+XERO_CLIENT_ID = os.environ.get("XERO_CLIENT_ID")
+XERO_CLIENT_SECRET = os.environ.get("XERO_CLIENT_SECRET")
+
 # Email
 resend.api_key = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "notifications@procare.com")
@@ -4416,6 +4420,55 @@ async def get_hr_stats(current_user: User = Depends(get_current_user)):
         "expiring_certifications": expiring_certs,
         "pending_payroll": pending_payroll
     }
+
+# ==================================
+# Xero Accounting Integration
+# ==================================
+
+@api_router.get("/xero/auth-url")
+async def get_xero_auth_url(redirect_uri: str = Query(...)):
+    """Get Xero OAuth URL for connecting accounting"""
+    if not XERO_CLIENT_ID:
+        raise HTTPException(status_code=400, detail="Xero integration not configured")
+    
+    state = str(uuid.uuid4())
+    
+    await db.xero_states.insert_one({
+        "state": state,
+        "redirect_uri": redirect_uri,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    scopes = "openid profile email accounting.transactions accounting.contacts accounting.settings offline_access"
+    auth_url = (
+        f"https://login.xero.com/identity/connect/authorize?"
+        f"response_type=code&"
+        f"client_id={XERO_CLIENT_ID}&"
+        f"redirect_uri={redirect_uri}&"
+        f"scope={scopes}&"
+        f"state={state}"
+    )
+    
+    return {"auth_url": auth_url, "state": state}
+
+@api_router.get("/xero/status")
+async def get_xero_status():
+    """Check Xero connection status"""
+    connection = await db.xero_connections.find_one({"type": "xero"}, {"_id": 0})
+    if not connection:
+        return {"connected": False}
+    
+    return {
+        "connected": True,
+        "tenants": connection.get("tenants", []),
+        "connected_at": connection.get("connected_at")
+    }
+
+@api_router.post("/xero/disconnect")
+async def disconnect_xero():
+    """Disconnect Xero integration"""
+    await db.xero_connections.delete_one({"type": "xero"})
+    return {"message": "Xero disconnected successfully"}
 
 # Startup event
 @app.on_event("startup")
