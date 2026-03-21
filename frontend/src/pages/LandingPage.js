@@ -494,10 +494,11 @@ const LandingPage = () => {
         ) : (
           <Button 
             size="lg" 
-            className="rounded-full w-14 h-14 shadow-lg"
+            className="rounded-xl w-16 h-16 shadow-xl hover:shadow-2xl transition-all duration-200"
             onClick={() => setShowChat(true)}
+            aria-label="Open support chat"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-7 h-7" />
           </Button>
         )}
       </div>
