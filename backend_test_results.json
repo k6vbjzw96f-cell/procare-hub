@@ -1,0 +1,143 @@
+{
+  "timestamp": "2026-03-21T04:14:07.440689",
+  "total_tests": 27,
+  "passed_tests": 27,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "User Registration",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "User Login",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Current User",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Dashboard Stats",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Dashboard Stats Fields",
+      "success": true,
+      "details": "All required fields present"
+    },
+    {
+      "test": "Create Client",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Client",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Update Client",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "List Clients",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Create Staff",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Staff",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Update Staff",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "List Staff",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Create Shift",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Shift",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Update Shift Status",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "List Shifts",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Create Invoice",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Invoice",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Update Invoice Status",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "List Invoices",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Create Compliance Record",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Update Compliance Status",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "List Compliance Records",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Delete Shift",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Delete Staff",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Delete Client",
+      "success": true,
+      "details": "Status: 200"
+    }
+  ]
+}
