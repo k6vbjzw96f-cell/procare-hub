@@ -153,8 +153,12 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <img src="/procare-logo.jpeg" alt="ProCare Hub" className="w-10 h-10 rounded-lg" />
-              <span className="text-xl font-bold text-primary">ProCare Hub</span>
+              <img src="/procare-logo.png" alt="ProCare Hub" className="w-10 h-10" />
+              <span className="text-xl font-bold">
+                <span className="text-emerald-700">Pro</span>
+                <span className="text-teal-500">Care</span>
+                <span className="text-emerald-700"> Hub</span>
+              </span>
             </div>
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-slate-600 hover:text-primary transition-colors">Features</a>
@@ -406,8 +410,12 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <img src="/procare-logo.jpeg" alt="ProCare Hub" className="w-8 h-8 rounded" />
-                <span className="text-white font-bold">ProCare Hub</span>
+                <img src="/procare-logo.png" alt="ProCare Hub" className="w-8 h-8" />
+                <span className="font-bold">
+                  <span className="text-emerald-400">Pro</span>
+                  <span className="text-teal-300">Care</span>
+                  <span className="text-emerald-400"> Hub</span>
+                </span>
               </div>
               <p className="text-sm">
                 The complete NDIS provider management platform built for Australian disability service providers.

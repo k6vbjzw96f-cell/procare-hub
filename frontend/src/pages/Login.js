@@ -671,14 +671,20 @@ const Login = ({ onLogin }) => {
         data-testid="login-card"
       >
         <CardHeader className="space-y-3 text-center pb-4 sm:pb-6">
-          <div className="mx-auto w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center mb-2">
+          <div className="mx-auto flex flex-col items-center mb-2">
             <img 
-              src="/procare-logo.jpeg" 
-              alt="ProCare Hub Logo" 
-              className="w-full h-full object-contain"
+              src="/procare-logo.png" 
+              alt="ProCare Hub" 
+              className="w-20 h-20 sm:w-24 sm:h-24 object-contain"
             />
+            <div className="mt-3">
+              <span className="text-2xl sm:text-3xl font-bold">
+                <span className="text-emerald-700">Pro</span>
+                <span className="text-teal-500">Care</span>
+                <span className="text-emerald-700"> Hub</span>
+              </span>
+            </div>
           </div>
-          <CardTitle className="text-2xl sm:text-3xl font-manrope text-primary">ProCare Hub</CardTitle>
           <CardDescription className="text-slate-600 text-sm sm:text-base">NDIS Provider Management Platform</CardDescription>
         </CardHeader>
         <CardContent className="px-4 sm:px-6">

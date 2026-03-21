@@ -68,13 +68,17 @@ const Layout = ({ children, user, onLogout }) => {
           <div className="p-6 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img 
-                src="/procare-logo.jpeg" 
-                alt="ProCare Hub Logo" 
-                className="h-16 w-16 object-contain"
+                src="/procare-logo.png" 
+                alt="ProCare Hub" 
+                className="h-12 w-12 object-contain"
                 data-testid="app-logo"
               />
               <div>
-                <h1 className="text-xl font-manrope font-bold text-primary">ProCare Hub</h1>
+                <h1 className="text-lg font-bold">
+                  <span className="text-emerald-700">Pro</span>
+                  <span className="text-teal-500">Care</span>
+                  <span className="text-emerald-700"> Hub</span>
+                </h1>
                 <p className="text-xs text-slate-500">NDIS Provider Platform</p>
               </div>
             </div>
