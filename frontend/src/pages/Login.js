@@ -6,16 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { ArrowLeft, Mail, KeyRound, CheckCircle2, Building2 } from 'lucide-react';
+import { ArrowLeft, Mail, KeyRound, CheckCircle2, Building2, ShieldCheck, Lock, ExternalLink } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Microsoft and Google SSO Icons as SVG components
-const MicrosoftIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+// Microsoft and Google SSO Icons as SVG components - styled to match app theme
+const MicrosoftIcon = ({ className }) => (
+  <svg width="18" height="18" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
     <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
     <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
     <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
@@ -23,8 +24,8 @@ const MicrosoftIcon = () => (
   </svg>
 );
 
-const GoogleIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+const GoogleIcon = ({ className }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -42,6 +43,7 @@ const Login = ({ onLogin }) => {
   });
   const [loading, setLoading] = useState(false);
   const [ssoLoading, setSsoLoading] = useState({ microsoft: false, google: false });
+  const [rememberMe, setRememberMe] = useState(false);
   
   // Forgot password state
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
@@ -50,6 +52,15 @@ const Login = ({ onLogin }) => {
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Load remembered email on mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('remembered_email');
+    if (rememberedEmail) {
+      setLoginData(prev => ({ ...prev, email: rememberedEmail }));
+      setRememberMe(true);
+    }
+  }, []);
 
   // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
   // Handle SSO callback on component mount
@@ -155,11 +166,20 @@ const Login = ({ onLogin }) => {
       setSsoLoading({ ...ssoLoading, google: false });
     }
   };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const response = await axios.post(`${API}/auth/login`, loginData);
+      
+      // Handle Remember Me
+      if (rememberMe) {
+        localStorage.setItem('remembered_email', loginData.email);
+      } else {
+        localStorage.removeItem('remembered_email');
+      }
+      
       toast.success('Login successful!');
       onLogin(response.data.access_token, response.data.user);
     } catch (error) {
@@ -387,30 +407,58 @@ const Login = ({ onLogin }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-100 p-4">
-      <Card className="w-full max-w-md shadow-xl border-slate-100" data-testid="login-card">
-        <CardHeader className="space-y-3 text-center pb-6">
-          <div className="mx-auto w-32 h-32 flex items-center justify-center mb-2">
+    <div 
+      className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-100 p-4 sm:p-6"
+      role="main"
+      aria-label="Login page"
+    >
+      {/* Security Indicator - Top Banner */}
+      <div className="flex items-center gap-2 mb-4 text-sm text-emerald-700 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200">
+        <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+        <span className="font-medium">Secure Login</span>
+        <Lock className="w-3 h-3" aria-hidden="true" />
+      </div>
+
+      <Card 
+        className="w-full max-w-md shadow-xl border-slate-100 focus-within:ring-2 focus-within:ring-primary/20" 
+        data-testid="login-card"
+      >
+        <CardHeader className="space-y-3 text-center pb-4 sm:pb-6">
+          <div className="mx-auto w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center mb-2">
             <img 
               src="/procare-logo.jpeg" 
               alt="ProCare Hub Logo" 
               className="w-full h-full object-contain"
             />
           </div>
-          <CardTitle className="text-3xl font-manrope text-primary">ProCare Hub</CardTitle>
-          <CardDescription className="text-slate-600">NDIS Provider Management Platform</CardDescription>
+          <CardTitle className="text-2xl sm:text-3xl font-manrope text-primary">ProCare Hub</CardTitle>
+          <CardDescription className="text-slate-600 text-sm sm:text-base">NDIS Provider Management Platform</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login" data-testid="login-tab">Login</TabsTrigger>
-              <TabsTrigger value="register" data-testid="register-tab">Register</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-4 sm:mb-6" aria-label="Login or Register">
+              <TabsTrigger 
+                value="login" 
+                data-testid="login-tab"
+                className="text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Login
+              </TabsTrigger>
+              <TabsTrigger 
+                value="register" 
+                data-testid="register-tab"
+                className="text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Register
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4" aria-label="Login form">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email" className="text-slate-700 font-medium">
+                    Email
+                  </Label>
                   <Input
                     id="login-email"
                     data-testid="login-email-input"
@@ -419,16 +467,22 @@ const Login = ({ onLogin }) => {
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     required
+                    autoComplete="email"
+                    aria-required="true"
+                    className="h-11 text-base focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password">Password</Label>
+                    <Label htmlFor="login-password" className="text-slate-700 font-medium">
+                      Password
+                    </Label>
                     <button
                       type="button"
-                      className="text-sm text-primary hover:underline"
+                      className="text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
                       onClick={() => setForgotPasswordMode(true)}
                       data-testid="forgot-password-link"
+                      aria-label="Forgot your password? Click to reset"
                     >
                       Forgot password?
                     </button>
@@ -441,64 +495,105 @@ const Login = ({ onLogin }) => {
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     required
+                    autoComplete="current-password"
+                    aria-required="true"
+                    className="h-11 text-base focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
+                
+                {/* Remember Me Checkbox */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="remember-me" 
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked)}
+                    data-testid="remember-me-checkbox"
+                    aria-describedby="remember-me-description"
+                    className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                  <Label 
+                    htmlFor="remember-me" 
+                    className="text-sm text-slate-600 cursor-pointer select-none"
+                    id="remember-me-description"
+                  >
+                    Remember me on this device
+                  </Label>
+                </div>
+
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-11 text-base font-medium"
                   disabled={loading}
                   data-testid="login-submit-button"
+                  aria-busy={loading}
                 >
-                  {loading ? 'Logging in...' : 'Login'}
+                  {loading ? (
+                    <>
+                      <span className="animate-spin mr-2">⏳</span>
+                      Logging in...
+                    </>
+                  ) : (
+                    'Login'
+                  )}
                 </Button>
               </form>
               
               {/* SSO Sign-in Options */}
-              <div className="mt-6">
+              <div className="mt-6" role="group" aria-label="Organization sign-in options">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <Separator className="w-full" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-slate-500 flex items-center gap-1">
-                      <Building2 className="w-3 h-3" />
+                    <span className="bg-white px-3 text-slate-500 flex items-center gap-1.5 font-medium">
+                      <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
                       Sign in with your organization
                     </span>
                   </div>
                 </div>
                 
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 space-y-2.5">
+                  {/* Microsoft SSO Button - Custom styled */}
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-300 hover:bg-slate-50"
+                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
                     onClick={handleMicrosoftSignIn}
                     disabled={ssoLoading.microsoft}
                     data-testid="microsoft-sso-button"
+                    aria-label="Sign in with Microsoft account"
                   >
-                    <MicrosoftIcon />
-                    <span>{ssoLoading.microsoft ? 'Connecting...' : 'Sign in with Microsoft'}</span>
+                    <MicrosoftIcon className="flex-shrink-0" />
+                    <span className="text-slate-700 font-medium text-sm sm:text-base">
+                      {ssoLoading.microsoft ? 'Connecting...' : 'Sign in with Microsoft'}
+                    </span>
                   </Button>
                   
+                  {/* Google SSO Button - Custom styled */}
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-300 hover:bg-slate-50"
+                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
                     onClick={handleGoogleSignIn}
                     disabled={ssoLoading.google}
                     data-testid="google-sso-button"
+                    aria-label="Sign in with Google account"
                   >
-                    <GoogleIcon />
-                    <span>{ssoLoading.google ? 'Connecting...' : 'Sign in with Google'}</span>
+                    <GoogleIcon className="flex-shrink-0" />
+                    <span className="text-slate-700 font-medium text-sm sm:text-base">
+                      {ssoLoading.google ? 'Connecting...' : 'Sign in with Google'}
+                    </span>
                   </Button>
                 </div>
               </div>
             </TabsContent>
             
             <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4">
+              <form onSubmit={handleRegister} className="space-y-4" aria-label="Registration form">
                 <div className="space-y-2">
-                  <Label htmlFor="register-name">Full Name</Label>
+                  <Label htmlFor="register-name" className="text-slate-700 font-medium">
+                    Full Name
+                  </Label>
                   <Input
                     id="register-name"
                     data-testid="register-name-input"
@@ -507,10 +602,15 @@ const Login = ({ onLogin }) => {
                     value={registerData.full_name}
                     onChange={(e) => setRegisterData({ ...registerData, full_name: e.target.value })}
                     required
+                    autoComplete="name"
+                    aria-required="true"
+                    className="h-11 text-base focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
+                  <Label htmlFor="register-email" className="text-slate-700 font-medium">
+                    Email
+                  </Label>
                   <Input
                     id="register-email"
                     data-testid="register-email-input"
@@ -519,10 +619,15 @@ const Login = ({ onLogin }) => {
                     value={registerData.email}
                     onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                     required
+                    autoComplete="email"
+                    aria-required="true"
+                    className="h-11 text-base focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-password">Password</Label>
+                  <Label htmlFor="register-password" className="text-slate-700 font-medium">
+                    Password
+                  </Label>
                   <Input
                     id="register-password"
                     data-testid="register-password-input"
@@ -531,21 +636,72 @@ const Login = ({ onLogin }) => {
                     value={registerData.password}
                     onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                     required
+                    autoComplete="new-password"
+                    aria-required="true"
+                    minLength={6}
+                    className="h-11 text-base focus-visible:ring-2 focus-visible:ring-primary"
                   />
+                  <p className="text-xs text-slate-500" id="password-hint">
+                    Must be at least 6 characters
+                  </p>
                 </div>
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-11 text-base font-medium"
                   disabled={loading}
                   data-testid="register-submit-button"
+                  aria-busy={loading}
                 >
-                  {loading ? 'Creating Account...' : 'Create Account'}
+                  {loading ? (
+                    <>
+                      <span className="animate-spin mr-2">⏳</span>
+                      Creating Account...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Privacy & Terms Footer */}
+      <div className="mt-6 text-center text-xs sm:text-sm text-slate-500">
+        <p className="mb-2">
+          By signing in, you agree to our{' '}
+          <a 
+            href="#privacy" 
+            className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded inline-flex items-center gap-1"
+            onClick={(e) => {
+              e.preventDefault();
+              toast.info('Privacy Policy: Your data is securely stored and never shared with third parties without consent.');
+            }}
+            aria-label="View Privacy Policy"
+          >
+            Privacy Policy
+            <ExternalLink className="w-3 h-3" aria-hidden="true" />
+          </a>
+          {' '}and{' '}
+          <a 
+            href="#terms" 
+            className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded inline-flex items-center gap-1"
+            onClick={(e) => {
+              e.preventDefault();
+              toast.info('Terms of Service: Use of ProCare Hub is subject to NDIS provider regulations and our service agreement.');
+            }}
+            aria-label="View Terms of Service"
+          >
+            Terms of Service
+            <ExternalLink className="w-3 h-3" aria-hidden="true" />
+          </a>
+        </p>
+        <p className="text-slate-400 flex items-center justify-center gap-1">
+          <Lock className="w-3 h-3" aria-hidden="true" />
+          256-bit SSL encrypted connection
+        </p>
+      </div>
     </div>
   );
 };

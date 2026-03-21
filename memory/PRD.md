@@ -7,6 +7,13 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 
 ### Implemented (Complete)
 - **Authentication**: User registration/login with JWT tokens, role-based access (Admin, Coordinator, Support Worker), **Forgot Password with email reset code**, **Organization SSO (Microsoft & Google)** ✅
+- **Enhanced Login Screen** (March 21, 2026) ✅:
+  - "Remember me" checkbox for user convenience
+  - High contrast accessibility with ARIA labels and screen-reader support
+  - Privacy Policy & Terms of Service links
+  - Mobile-optimized responsive design
+  - Security indicators ("Secure Login" badge, SSL encryption notice)
+  - Custom-styled SSO buttons matching app theme
 - **Dashboard**: Overview with stats, quick actions, recent activity
 - **Client Management**: Add/edit clients with photo uploads, support needs tracking
 - **Staff Management**: Staff records with certifications, clock-in/out, **break tracking**, photo uploads
