@@ -52,9 +52,17 @@ const Layout = ({ children, user, onLogout }) => {
       <aside className="w-64 bg-white border-r border-slate-200 fixed h-full">
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-manrope font-bold text-primary" data-testid="app-logo">ProCare Hub</h1>
-              <p className="text-xs text-slate-500 mt-1">NDIS Provider Platform</p>
+            <div className="flex items-center gap-3">
+              <img 
+                src="/procare-logo.jpeg" 
+                alt="ProCare Hub Logo" 
+                className="h-12 w-12 object-contain"
+                data-testid="app-logo"
+              />
+              <div>
+                <h1 className="text-xl font-manrope font-bold text-primary">ProCare Hub</h1>
+                <p className="text-xs text-slate-500">NDIS Provider Platform</p>
+              </div>
             </div>
             <Button variant="ghost" size="sm" className="relative" onClick={() => window.location.href = '/notifications'}>
               <Bell className="w-5 h-5" />
