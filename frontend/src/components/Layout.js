@@ -1,37 +1,79 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, Calendar, FileText, Shield, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const getAuthHeader = () => ({
+  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+});
 
 const Layout = ({ children, user, onLogout }) => {
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await axios.get(`${API}/notifications`, getAuthHeader());
+      const unread = response.data.filter(n => !n.is_read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      // Silently fail
+    }
+  };
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Clients', href: '/clients', icon: Users },
-    { name: 'Staff', href: '/staff', icon: UserSquare },
-    { name: 'Rostering', href: '/rostering', icon: Calendar },
-    { name: 'Invoices', href: '/invoices', icon: FileText },
-    { name: 'Compliance', href: '/compliance', icon: Shield },
-    { name: 'Reports', href: '/reports', icon: BarChart3 },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Clients', href: '/clients', icon: Users, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Staff', href: '/staff', icon: UserSquare, roles: ['admin', 'coordinator'] },
+    { name: 'Rostering', href: '/rostering', icon: Calendar, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Hour Logging', href: '/hours', icon: Clock, roles: ['support_worker'] },
+    { name: 'Invoices', href: '/invoices', icon: FileText, roles: ['admin', 'coordinator'] },
+    { name: 'Compliance', href: '/compliance', icon: Shield, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['admin', 'coordinator'] },
   ];
+
+  const filteredNavigation = navigation.filter(item => 
+    item.roles.includes(user?.role)
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="w-64 bg-white border-r border-slate-200 fixed h-full">
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-slate-200">
-            <h1 className="text-2xl font-manrope font-bold text-primary" data-testid="app-logo">ProCare Hub</h1>
-            <p className="text-xs text-slate-500 mt-1">NDIS Provider Platform</p>
+          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-manrope font-bold text-primary" data-testid="app-logo">ProCare Hub</h1>
+              <p className="text-xs text-slate-500 mt-1">NDIS Provider Platform</p>
+            </div>
+            <Button variant="ghost" size="sm" className="relative" onClick={() => window.location.href = '/notifications'}>
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {unreadCount}
+                </Badge>
+              )}
+            </Button>
           </div>
           
           <nav className="flex-1 p-4 space-y-1">
-            {navigation.map((item) => {
+            {filteredNavigation.map((item) => {
               const isActive = location.pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  data-testid={`nav-${item.name.toLowerCase()}`}
+                  data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                     isActive
                       ? 'bg-primary text-white shadow-sm'

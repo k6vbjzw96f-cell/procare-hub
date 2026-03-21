@@ -9,6 +9,7 @@ import Rostering from '@/pages/Rostering';
 import Invoices from '@/pages/Invoices';
 import Compliance from '@/pages/Compliance';
 import Reports from '@/pages/Reports';
+import HourLogging from '@/pages/HourLogging';
 import Layout from '@/components/Layout';
 import '@/App.css';
 
@@ -69,6 +70,7 @@ function App() {
                     <Route path="/clients" element={<Clients />} />
                     <Route path="/staff" element={<Staff />} />
                     <Route path="/rostering" element={<Rostering />} />
+                    <Route path="/hours" element={<HourLogging />} />
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/compliance" element={<Compliance />} />
                     <Route path="/reports" element={<Reports />} />

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Plus, Search, Pencil, Trash2, Upload } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -75,6 +76,25 @@ const Clients = () => {
       fetchClients();
     } catch (error) {
       toast.error('Failed to delete client');
+    }
+  };
+
+  const handlePhotoUpload = async (clientId, file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      await axios.post(`${API}/clients/${clientId}/photo`, formData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      toast.success('Photo uploaded successfully');
+      fetchClients();
+    } catch (error) {
+      toast.error('Failed to upload photo');
     }
   };
 
@@ -286,7 +306,29 @@ const Clients = () => {
               <TableBody>
                 {filteredClients.map((client) => (
                   <TableRow key={client.id} className="table-row" data-testid={`client-row-${client.id}`}>
-                    <TableCell className="font-medium">{client.full_name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarImage src={client.photo_url ? `${API}${client.photo_url}?auth=${localStorage.getItem('token')}` : undefined} />
+                          <AvatarFallback className="bg-primary-100 text-primary-700">
+                            {client.full_name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{client.full_name}</div>
+                          <label className="text-xs text-primary cursor-pointer hover:underline">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => e.target.files[0] && handlePhotoUpload(client.id, e.target.files[0])}
+                            />
+                            <Upload className="w-3 h-3 inline mr-1" />
+                            Upload Photo
+                          </label>
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>{client.ndis_number}</TableCell>
                     <TableCell>
                       <div className="text-sm">

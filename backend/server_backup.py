@@ -1,11 +1,10 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, File, UploadFile, Response, Query, Header
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
-import asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional
@@ -13,8 +12,6 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 from passlib.context import CryptContext
-import requests
-import resend
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -30,72 +27,8 @@ security = HTTPBearer()
 SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'procarehub-secret-key-change-in-production')
 ALGORITHM = "HS256"
 
-# Storage
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
-APP_NAME = "procare-hub"
-storage_key = None
-
-# Email
-resend.api_key = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "notifications@procare.com")
-
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
-
-logger = logging.getLogger(__name__)
-
-# Storage Functions
-def init_storage():
-    global storage_key
-    if storage_key:
-        return storage_key
-    try:
-        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-        resp.raise_for_status()
-        storage_key = resp.json()["storage_key"]
-        logger.info("Storage initialized successfully")
-        return storage_key
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-        return None
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    if not key:
-        raise HTTPException(status_code=500, detail="Storage not initialized")
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data, timeout=120
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-def get_object(path: str) -> tuple[bytes, str]:
-    key = init_storage()
-    if not key:
-        raise HTTPException(status_code=500, detail="Storage not initialized")
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key}, timeout=60
-    )
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
-
-# Email Function
-async def send_email(recipient: str, subject: str, html_content: str):
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [recipient],
-            "subject": subject,
-            "html": html_content
-        }
-        await asyncio.to_thread(resend.Emails.send, params)
-        logger.info(f"Email sent to {recipient}")
-    except Exception as e:
-        logger.error(f"Failed to send email: {e}")
 
 # Models
 class User(BaseModel):
@@ -104,15 +37,13 @@ class User(BaseModel):
     email: EmailStr
     full_name: str
     role: str
-    phone: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    role: str = "support_worker"
-    phone: Optional[str] = None
+    role: str = "coordinator"
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -131,15 +62,12 @@ class Client(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
-    photo_url: Optional[str] = None
     plan_start_date: Optional[str] = None
     plan_end_date: Optional[str] = None
     total_budget: float = 0.0
     spent_budget: float = 0.0
     status: str = "active"
     support_needs: Optional[str] = None
-    emergency_contact_name: Optional[str] = None
-    emergency_contact_phone: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ClientCreate(BaseModel):
@@ -152,8 +80,6 @@ class ClientCreate(BaseModel):
     plan_end_date: Optional[str] = None
     total_budget: float = 0.0
     support_needs: Optional[str] = None
-    emergency_contact_name: Optional[str] = None
-    emergency_contact_phone: Optional[str] = None
 
 class Staff(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -203,32 +129,6 @@ class ShiftCreate(BaseModel):
     service_type: str
     notes: Optional[str] = None
 
-class HourLog(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    shift_id: Optional[str] = None
-    staff_id: str
-    staff_name: str
-    client_id: str
-    client_name: str
-    log_date: str
-    start_time: str
-    end_time: Optional[str] = None
-    total_hours: Optional[float] = None
-    service_type: str
-    notes: Optional[str] = None
-    is_clocked_in: bool = False
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class HourLogCreate(BaseModel):
-    shift_id: Optional[str] = None
-    client_id: str
-    log_date: str
-    start_time: str
-    end_time: Optional[str] = None
-    service_type: str
-    notes: Optional[str] = None
-
 class Invoice(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -257,9 +157,6 @@ class ComplianceRecord(BaseModel):
     severity: str = "low"
     status: str = "open"
     reported_by: str
-    client_id: Optional[str] = None
-    staff_id: Optional[str] = None
-    attachment_urls: List[str] = []
     reported_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     resolved_at: Optional[datetime] = None
 
@@ -269,32 +166,6 @@ class ComplianceRecordCreate(BaseModel):
     description: str
     severity: str = "low"
     reported_by: str
-    client_id: Optional[str] = None
-    staff_id: Optional[str] = None
-
-class FileRecord(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    storage_path: str
-    original_filename: str
-    content_type: str
-    size: int
-    uploaded_by: str
-    entity_type: str
-    entity_id: str
-    is_deleted: bool = False
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class Notification(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    user_id: str
-    title: str
-    message: str
-    notification_type: str
-    is_read: bool = False
-    action_url: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class DashboardStats(BaseModel):
     total_clients: int
@@ -333,32 +204,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         return User(**user_doc)
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-
-def check_permission(user: User, required_roles: List[str]):
-    if user.role not in required_roles:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-async def create_notification(user_id: str, title: str, message: str, notification_type: str, action_url: Optional[str] = None, send_email: bool = False):
-    notification = Notification(
-        user_id=user_id,
-        title=title,
-        message=message,
-        notification_type=notification_type,
-        action_url=action_url
-    )
-    doc = notification.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
-    await db.notifications.insert_one(doc)
-    
-    if send_email:
-        user_doc = await db.users.find_one({"id": user_id}, {"_id": 0})
-        if user_doc and user_doc.get('email'):
-            html = f"""
-            <h2>{title}</h2>
-            <p>{message}</p>
-            {f'<p><a href="{action_url}">View Details</a></p>' if action_url else ''}
-            """
-            await send_email(user_doc['email'], title, html)
 
 # Auth Routes
 @api_router.post("/auth/register", response_model=Token)
@@ -399,83 +244,13 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-# File Upload Routes
-@api_router.post("/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    entity_type: str = Query(...),
-    entity_id: str = Query(...),
-    current_user: User = Depends(get_current_user)
-):
-    ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
-    path = f"{APP_NAME}/uploads/{entity_type}/{entity_id}/{uuid.uuid4()}.{ext}"
-    data = await file.read()
-    result = put_object(path, data, file.content_type or "application/octet-stream")
-    
-    file_record = FileRecord(
-        storage_path=result["path"],
-        original_filename=file.filename,
-        content_type=file.content_type or "application/octet-stream",
-        size=result["size"],
-        uploaded_by=current_user.id,
-        entity_type=entity_type,
-        entity_id=entity_id
-    )
-    doc = file_record.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
-    await db.files.insert_one(doc)
-    
-    return {"file_id": file_record.id, "path": result["path"], "filename": file.filename}
-
-@api_router.get("/files/{file_id}/download")
-async def download_file(
-    file_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    record = await db.files.find_one({"id": file_id, "is_deleted": False}, {"_id": 0})
-    if not record:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    data, content_type = get_object(record["storage_path"])
-    return Response(content=data, media_type=record.get("content_type", content_type))
-
-@api_router.get("/files")
-async def list_files(
-    entity_type: Optional[str] = Query(None),
-    entity_id: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user)
-):
-    query = {"is_deleted": False}
-    if entity_type:
-        query["entity_type"] = entity_type
-    if entity_id:
-        query["entity_id"] = entity_id
-    
-    files = await db.files.find(query, {"_id": 0}).to_list(1000)
-    for f in files:
-        if isinstance(f['created_at'], str):
-            f['created_at'] = datetime.fromisoformat(f['created_at'])
-    return files
-
-# Client Routes (Admin & Coordinators only)
+# Client Routes
 @api_router.post("/clients", response_model=Client)
 async def create_client(client_data: ClientCreate, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     client = Client(**client_data.model_dump())
     doc = client.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.clients.insert_one(doc)
-    
-    # Notify relevant staff
-    await create_notification(
-        current_user.id,
-        "New Client Added",
-        f"Client {client.full_name} has been added to the system.",
-        "client",
-        f"/clients/{client.id}",
-        send_email=True
-    )
-    
     return client
 
 @api_router.get("/clients", response_model=List[Client])
@@ -497,7 +272,6 @@ async def get_client(client_id: str, current_user: User = Depends(get_current_us
 
 @api_router.put("/clients/{client_id}", response_model=Client)
 async def update_client(client_id: str, client_data: ClientCreate, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     result = await db.clients.update_one({"id": client_id}, {"$set": client_data.model_dump()})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -508,65 +282,14 @@ async def update_client(client_id: str, client_data: ClientCreate, current_user:
 
 @api_router.delete("/clients/{client_id}")
 async def delete_client(client_id: str, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin"])
     result = await db.clients.delete_one({"id": client_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Client not found")
     return {"message": "Client deleted successfully"}
 
-@api_router.post("/clients/{client_id}/photo")
-async def upload_client_photo(
-    client_id: str,
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user)
-):
-    check_permission(current_user, ["admin", "coordinator"])
-    
-    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    path = f"{APP_NAME}/uploads/clients/{client_id}/photo.{ext}"
-    data = await file.read()
-    result = put_object(path, data, file.content_type or "image/jpeg")
-    
-    photo_url = f"/api/files/client-photo/{client_id}"
-    await db.clients.update_one({"id": client_id}, {"$set": {"photo_url": photo_url}})
-    
-    file_record = FileRecord(
-        storage_path=result["path"],
-        original_filename=file.filename,
-        content_type=file.content_type or "image/jpeg",
-        size=result["size"],
-        uploaded_by=current_user.id,
-        entity_type="client_photo",
-        entity_id=client_id
-    )
-    doc = file_record.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
-    await db.files.insert_one(doc)
-    
-    return {"photo_url": photo_url}
-
-@api_router.get("/files/client-photo/{client_id}")
-async def get_client_photo(
-    client_id: str,
-    auth: Optional[str] = Query(None),
-    authorization: Optional[str] = Header(None)
-):
-    record = await db.files.find_one({
-        "entity_type": "client_photo",
-        "entity_id": client_id,
-        "is_deleted": False
-    }, {"_id": 0}, sort=[("created_at", -1)])
-    
-    if not record:
-        raise HTTPException(status_code=404, detail="Photo not found")
-    
-    data, content_type = get_object(record["storage_path"])
-    return Response(content=data, media_type=record.get("content_type", content_type))
-
 # Staff Routes
 @api_router.post("/staff", response_model=Staff)
 async def create_staff(staff_data: StaffCreate, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     staff = Staff(**staff_data.model_dump())
     doc = staff.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -592,7 +315,6 @@ async def get_staff_member(staff_id: str, current_user: User = Depends(get_curre
 
 @api_router.put("/staff/{staff_id}", response_model=Staff)
 async def update_staff(staff_id: str, staff_data: StaffCreate, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     result = await db.staff.update_one({"id": staff_id}, {"$set": staff_data.model_dump()})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Staff not found")
@@ -603,7 +325,6 @@ async def update_staff(staff_id: str, staff_data: StaffCreate, current_user: Use
 
 @api_router.delete("/staff/{staff_id}")
 async def delete_staff(staff_id: str, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin"])
     result = await db.staff.delete_one({"id": staff_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Staff not found")
@@ -612,7 +333,6 @@ async def delete_staff(staff_id: str, current_user: User = Depends(get_current_u
 # Shift Routes
 @api_router.post("/shifts", response_model=Shift)
 async def create_shift(shift_data: ShiftCreate, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     client = await db.clients.find_one({"id": shift_data.client_id}, {"_id": 0})
     staff = await db.staff.find_one({"id": shift_data.staff_id}, {"_id": 0})
     
@@ -629,29 +349,11 @@ async def create_shift(shift_data: ShiftCreate, current_user: User = Depends(get
     doc = shift.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.shifts.insert_one(doc)
-    
-    # Notify staff member
-    staff_user = await db.users.find_one({"email": staff['email']}, {"_id": 0})
-    if staff_user:
-        await create_notification(
-            staff_user['id'],
-            "New Shift Assigned",
-            f"You have been assigned to {client['full_name']} on {shift.shift_date} at {shift.start_time}.",
-            "shift",
-            f"/rostering",
-            send_email=True
-        )
-    
     return shift
 
 @api_router.get("/shifts", response_model=List[Shift])
 async def get_shifts(current_user: User = Depends(get_current_user)):
-    query = {}
-    if current_user.role == "support_worker":
-        # Support workers see only their shifts
-        query = {"staff_id": current_user.id}
-    
-    shifts = await db.shifts.find(query, {"_id": 0}).to_list(1000)
+    shifts = await db.shifts.find({}, {"_id": 0}).to_list(1000)
     for shift in shifts:
         if isinstance(shift['created_at'], str):
             shift['created_at'] = datetime.fromisoformat(shift['created_at'])
@@ -662,17 +364,12 @@ async def get_shift(shift_id: str, current_user: User = Depends(get_current_user
     shift = await db.shifts.find_one({"id": shift_id}, {"_id": 0})
     if not shift:
         raise HTTPException(status_code=404, detail="Shift not found")
-    
-    if current_user.role == "support_worker" and shift['staff_id'] != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
     if isinstance(shift['created_at'], str):
         shift['created_at'] = datetime.fromisoformat(shift['created_at'])
     return Shift(**shift)
 
 @api_router.put("/shifts/{shift_id}", response_model=Shift)
 async def update_shift(shift_id: str, shift_data: dict, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     result = await db.shifts.update_one({"id": shift_id}, {"$set": shift_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Shift not found")
@@ -683,85 +380,14 @@ async def update_shift(shift_id: str, shift_data: dict, current_user: User = Dep
 
 @api_router.delete("/shifts/{shift_id}")
 async def delete_shift(shift_id: str, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     result = await db.shifts.delete_one({"id": shift_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Shift not found")
     return {"message": "Shift deleted successfully"}
 
-# Hour Logging Routes
-@api_router.post("/hours", response_model=HourLog)
-async def log_hours(hour_data: HourLogCreate, current_user: User = Depends(get_current_user)):
-    client = await db.clients.find_one({"id": hour_data.client_id}, {"_id": 0})
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    
-    total_hours = None
-    if hour_data.end_time:
-        # Calculate total hours
-        from datetime import datetime as dt
-        start = dt.strptime(hour_data.start_time, "%H:%M")
-        end = dt.strptime(hour_data.end_time, "%H:%M")
-        total_hours = (end - start).seconds / 3600
-    
-    hour_log = HourLog(
-        shift_id=hour_data.shift_id,
-        staff_id=current_user.id,
-        staff_name=current_user.full_name,
-        client_id=hour_data.client_id,
-        client_name=client['full_name'],
-        log_date=hour_data.log_date,
-        start_time=hour_data.start_time,
-        end_time=hour_data.end_time,
-        total_hours=total_hours,
-        service_type=hour_data.service_type,
-        notes=hour_data.notes,
-        is_clocked_in=hour_data.end_time is None
-    )
-    
-    doc = hour_log.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
-    await db.hour_logs.insert_one(doc)
-    
-    return hour_log
-
-@api_router.get("/hours", response_model=List[HourLog])
-async def get_hour_logs(current_user: User = Depends(get_current_user)):
-    query = {}
-    if current_user.role == "support_worker":
-        query = {"staff_id": current_user.id}
-    
-    logs = await db.hour_logs.find(query, {"_id": 0}).to_list(1000)
-    for log in logs:
-        if isinstance(log['created_at'], str):
-            log['created_at'] = datetime.fromisoformat(log['created_at'])
-    return logs
-
-@api_router.put("/hours/{log_id}/clock-out")
-async def clock_out(log_id: str, end_time: str, current_user: User = Depends(get_current_user)):
-    log = await db.hour_logs.find_one({"id": log_id, "staff_id": current_user.id}, {"_id": 0})
-    if not log:
-        raise HTTPException(status_code=404, detail="Hour log not found")
-    
-    if not log['is_clocked_in']:
-        raise HTTPException(status_code=400, detail="Already clocked out")
-    
-    from datetime import datetime as dt
-    start = dt.strptime(log['start_time'], "%H:%M")
-    end = dt.strptime(end_time, "%H:%M")
-    total_hours = (end - start).seconds / 3600
-    
-    await db.hour_logs.update_one(
-        {"id": log_id},
-        {"$set": {"end_time": end_time, "total_hours": total_hours, "is_clocked_in": False}}
-    )
-    
-    return {"message": "Clocked out successfully", "total_hours": total_hours}
-
 # Invoice Routes
 @api_router.post("/invoices", response_model=Invoice)
 async def create_invoice(invoice_data: InvoiceCreate, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     client = await db.clients.find_one({"id": invoice_data.client_id}, {"_id": 0})
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -798,7 +424,6 @@ async def get_invoice(invoice_id: str, current_user: User = Depends(get_current_
 
 @api_router.put("/invoices/{invoice_id}", response_model=Invoice)
 async def update_invoice(invoice_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     result = await db.invoices.update_one({"id": invoice_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -814,28 +439,11 @@ async def create_compliance_record(record_data: ComplianceRecordCreate, current_
     doc = record.model_dump()
     doc['reported_at'] = doc['reported_at'].isoformat()
     await db.compliance.insert_one(doc)
-    
-    # Notify admin users
-    admins = await db.users.find({"role": "admin"}, {"_id": 0}).to_list(100)
-    for admin in admins:
-        await create_notification(
-            admin['id'],
-            f"New {record.record_type.capitalize()}: {record.title}",
-            f"Severity: {record.severity}. {record.description[:100]}...",
-            "compliance",
-            f"/compliance",
-            send_email=record.severity in ["high", "critical"]
-        )
-    
     return record
 
 @api_router.get("/compliance", response_model=List[ComplianceRecord])
 async def get_compliance_records(current_user: User = Depends(get_current_user)):
-    query = {}
-    if current_user.role == "support_worker":
-        query = {"reported_by": current_user.full_name}
-    
-    records = await db.compliance.find(query, {"_id": 0}).to_list(1000)
+    records = await db.compliance.find({}, {"_id": 0}).to_list(1000)
     for record in records:
         if isinstance(record['reported_at'], str):
             record['reported_at'] = datetime.fromisoformat(record['reported_at'])
@@ -845,7 +453,6 @@ async def get_compliance_records(current_user: User = Depends(get_current_user))
 
 @api_router.put("/compliance/{record_id}", response_model=ComplianceRecord)
 async def update_compliance_record(record_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
     if 'status' in update_data and update_data['status'] == 'resolved' and 'resolved_at' not in update_data:
         update_data['resolved_at'] = datetime.now(timezone.utc).isoformat()
     
@@ -860,37 +467,6 @@ async def update_compliance_record(record_id: str, update_data: dict, current_us
         updated['resolved_at'] = datetime.fromisoformat(updated['resolved_at'])
     return ComplianceRecord(**updated)
 
-# Notifications Routes
-@api_router.get("/notifications", response_model=List[Notification])
-async def get_notifications(current_user: User = Depends(get_current_user)):
-    notifications = await db.notifications.find(
-        {"user_id": current_user.id},
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(100)
-    
-    for notif in notifications:
-        if isinstance(notif['created_at'], str):
-            notif['created_at'] = datetime.fromisoformat(notif['created_at'])
-    return notifications
-
-@api_router.put("/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: str, current_user: User = Depends(get_current_user)):
-    result = await db.notifications.update_one(
-        {"id": notification_id, "user_id": current_user.id},
-        {"$set": {"is_read": True}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    return {"message": "Notification marked as read"}
-
-@api_router.put("/notifications/mark-all-read")
-async def mark_all_notifications_read(current_user: User = Depends(get_current_user)):
-    await db.notifications.update_many(
-        {"user_id": current_user.id, "is_read": False},
-        {"$set": {"is_read": True}}
-    )
-    return {"message": "All notifications marked as read"}
-
 # Dashboard Routes
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
@@ -898,12 +474,7 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     active_clients = await db.clients.count_documents({"status": "active"})
     total_staff = await db.staff.count_documents({})
     active_staff = await db.staff.count_documents({"status": "active"})
-    
-    if current_user.role == "support_worker":
-        upcoming_shifts = await db.shifts.count_documents({"staff_id": current_user.id, "status": "scheduled"})
-    else:
-        upcoming_shifts = await db.shifts.count_documents({"status": "scheduled"})
-    
+    upcoming_shifts = await db.shifts.count_documents({"status": "scheduled"})
     pending_invoices = await db.invoices.count_documents({"status": "draft"})
     open_compliance = await db.compliance.count_documents({"status": "open"})
     
@@ -920,94 +491,6 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
         open_compliance_issues=open_compliance,
         total_revenue=total_revenue
     )
-
-# Reports Routes
-@api_router.get("/reports/service-delivery")
-async def get_service_delivery_report(
-    start_date: str = Query(...),
-    end_date: str = Query(...),
-    current_user: User = Depends(get_current_user)
-):
-    check_permission(current_user, ["admin", "coordinator"])
-    
-    shifts = await db.shifts.find({
-        "shift_date": {"$gte": start_date, "$lte": end_date}
-    }, {"_id": 0}).to_list(1000)
-    
-    hour_logs = await db.hour_logs.find({
-        "log_date": {"$gte": start_date, "$lte": end_date}
-    }, {"_id": 0}).to_list(1000)
-    
-    total_hours = sum(log.get('total_hours', 0) for log in hour_logs if log.get('total_hours'))
-    
-    return {
-        "period": {"start": start_date, "end": end_date},
-        "total_shifts": len(shifts),
-        "completed_shifts": len([s for s in shifts if s['status'] == 'completed']),
-        "total_hours_logged": round(total_hours, 2),
-        "shifts": shifts[:50],
-        "hour_logs": hour_logs[:50]
-    }
-
-@api_router.get("/reports/budget-utilization")
-async def get_budget_utilization_report(current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
-    
-    clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
-    
-    report = []
-    for client in clients:
-        utilization = 0
-        if client.get('total_budget', 0) > 0:
-            utilization = (client.get('spent_budget', 0) / client['total_budget']) * 100
-        
-        report.append({
-            "client_id": client['id'],
-            "client_name": client['full_name'],
-            "ndis_number": client['ndis_number'],
-            "total_budget": client.get('total_budget', 0),
-            "spent_budget": client.get('spent_budget', 0),
-            "remaining_budget": client.get('total_budget', 0) - client.get('spent_budget', 0),
-            "utilization_percentage": round(utilization, 2)
-        })
-    
-    return {"clients": report}
-
-@api_router.get("/reports/incidents-summary")
-async def get_incidents_summary_report(current_user: User = Depends(get_current_user)):
-    check_permission(current_user, ["admin", "coordinator"])
-    
-    records = await db.compliance.find({}, {"_id": 0}).to_list(1000)
-    
-    by_type = {}
-    by_severity = {}
-    by_status = {}
-    
-    for record in records:
-        record_type = record.get('record_type', 'other')
-        severity = record.get('severity', 'low')
-        status = record.get('status', 'open')
-        
-        by_type[record_type] = by_type.get(record_type, 0) + 1
-        by_severity[severity] = by_severity.get(severity, 0) + 1
-        by_status[status] = by_status.get(status, 0) + 1
-    
-    return {
-        "total_incidents": len(records),
-        "by_type": by_type,
-        "by_severity": by_severity,
-        "by_status": by_status,
-        "recent_incidents": records[:20]
-    }
-
-# Startup event
-@app.on_event("startup")
-async def startup():
-    try:
-        init_storage()
-        logger.info("Storage initialized successfully")
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
 
 app.include_router(api_router)
 
