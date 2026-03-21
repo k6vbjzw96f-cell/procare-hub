@@ -190,6 +190,40 @@ class StaffAttendance(BaseModel):
     is_clocked_in: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class StaffBreak(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    attendance_id: str
+    break_date: str
+    start_time: str
+    end_time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    break_type: str = "meal"  # meal, rest, personal
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StaffAvailability(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    day_of_week: int  # 0=Monday, 6=Sunday
+    start_time: str
+    end_time: str
+    is_available: bool = True
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StaffAvailabilityCreate(BaseModel):
+    staff_id: str
+    day_of_week: int
+    start_time: str
+    end_time: str
+    is_available: bool = True
+    notes: Optional[str] = None
+
 class Shift(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1318,6 +1352,315 @@ async def get_todays_attendance(current_user: User = Depends(get_current_user)):
             att['created_at'] = datetime.fromisoformat(att['created_at'])
     
     return attendances
+
+# Staff Break Routes
+@api_router.post("/staff/{staff_id}/break/start")
+async def start_break(staff_id: str, break_type: str = "meal", current_user: User = Depends(get_current_user)):
+    """Start a break for a staff member"""
+    staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    today = datetime.now(timezone.utc).date().isoformat()
+    now = datetime.now(timezone.utc)
+    
+    # Check if staff is clocked in
+    attendance = await db.staff_attendance.find_one({
+        "staff_id": staff_id,
+        "attendance_date": today,
+        "is_clocked_in": True
+    }, {"_id": 0})
+    
+    if not attendance:
+        raise HTTPException(status_code=400, detail="Staff must be clocked in to take a break")
+    
+    # Check if already on break
+    active_break = await db.staff_breaks.find_one({
+        "staff_id": staff_id,
+        "break_date": today,
+        "is_active": True
+    }, {"_id": 0})
+    
+    if active_break:
+        raise HTTPException(status_code=400, detail="Staff is already on a break")
+    
+    # Create break record
+    staff_break = StaffBreak(
+        staff_id=staff_id,
+        staff_name=staff['full_name'],
+        attendance_id=attendance['id'],
+        break_date=today,
+        start_time=now.strftime("%H:%M"),
+        break_type=break_type,
+        is_active=True
+    )
+    
+    doc = staff_break.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.staff_breaks.insert_one(doc)
+    
+    return {"message": "Break started", "break_id": staff_break.id, "start_time": staff_break.start_time}
+
+@api_router.post("/staff/{staff_id}/break/end")
+async def end_break(staff_id: str, current_user: User = Depends(get_current_user)):
+    """End the current break for a staff member"""
+    today = datetime.now(timezone.utc).date().isoformat()
+    now = datetime.now(timezone.utc)
+    
+    # Find active break
+    active_break = await db.staff_breaks.find_one({
+        "staff_id": staff_id,
+        "break_date": today,
+        "is_active": True
+    }, {"_id": 0})
+    
+    if not active_break:
+        raise HTTPException(status_code=400, detail="No active break found")
+    
+    end_time = now.strftime("%H:%M")
+    
+    # Calculate duration
+    start = dt.strptime(active_break['start_time'], "%H:%M")
+    end = dt.strptime(end_time, "%H:%M")
+    duration_minutes = int((end - start).total_seconds() / 60)
+    
+    await db.staff_breaks.update_one(
+        {"id": active_break['id']},
+        {"$set": {
+            "end_time": end_time,
+            "duration_minutes": duration_minutes,
+            "is_active": False
+        }}
+    )
+    
+    return {"message": "Break ended", "duration_minutes": duration_minutes}
+
+@api_router.get("/staff/{staff_id}/breaks")
+async def get_staff_breaks(staff_id: str, date: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get breaks for a staff member"""
+    query = {"staff_id": staff_id}
+    if date:
+        query["break_date"] = date
+    
+    breaks = await db.staff_breaks.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    for b in breaks:
+        if isinstance(b.get('created_at'), str):
+            b['created_at'] = datetime.fromisoformat(b['created_at'])
+    
+    return breaks
+
+@api_router.get("/staff/{staff_id}/break-status")
+async def get_break_status(staff_id: str, current_user: User = Depends(get_current_user)):
+    """Check if staff is currently on break"""
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    active_break = await db.staff_breaks.find_one({
+        "staff_id": staff_id,
+        "break_date": today,
+        "is_active": True
+    }, {"_id": 0})
+    
+    if active_break:
+        if isinstance(active_break.get('created_at'), str):
+            active_break['created_at'] = datetime.fromisoformat(active_break['created_at'])
+        return {"on_break": True, "break": StaffBreak(**active_break)}
+    
+    return {"on_break": False, "break": None}
+
+# Staff Availability Routes
+@api_router.post("/staff/availability")
+async def set_staff_availability(availability: StaffAvailabilityCreate, current_user: User = Depends(get_current_user)):
+    """Set availability for a staff member"""
+    staff = await db.staff.find_one({"id": availability.staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    # Check if availability already exists for this day
+    existing = await db.staff_availability.find_one({
+        "staff_id": availability.staff_id,
+        "day_of_week": availability.day_of_week
+    }, {"_id": 0})
+    
+    avail_data = availability.model_dump()
+    avail_data['staff_name'] = staff['full_name']
+    
+    if existing:
+        # Update existing
+        await db.staff_availability.update_one(
+            {"id": existing['id']},
+            {"$set": avail_data}
+        )
+        return {"message": "Availability updated", "id": existing['id']}
+    else:
+        # Create new
+        staff_avail = StaffAvailability(**avail_data)
+        doc = staff_avail.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.staff_availability.insert_one(doc)
+        return {"message": "Availability set", "id": staff_avail.id}
+
+@api_router.get("/staff/{staff_id}/availability")
+async def get_staff_availability(staff_id: str, current_user: User = Depends(get_current_user)):
+    """Get availability for a staff member"""
+    availability = await db.staff_availability.find(
+        {"staff_id": staff_id},
+        {"_id": 0}
+    ).sort("day_of_week", 1).to_list(7)
+    
+    for a in availability:
+        if isinstance(a.get('created_at'), str):
+            a['created_at'] = datetime.fromisoformat(a['created_at'])
+    
+    return availability
+
+@api_router.delete("/staff/availability/{availability_id}")
+async def delete_staff_availability(availability_id: str, current_user: User = Depends(get_current_user)):
+    """Delete an availability entry"""
+    result = await db.staff_availability.delete_one({"id": availability_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Availability not found")
+    return {"message": "Availability deleted"}
+
+@api_router.get("/team/availability")
+async def get_team_availability(date: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Get availability for all team members"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    # Get all staff
+    staff_list = await db.staff.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    
+    # If date provided, get day of week
+    if date:
+        target_date = datetime.strptime(date, "%Y-%m-%d")
+        day_of_week = target_date.weekday()
+    else:
+        day_of_week = datetime.now().weekday()
+    
+    # Get availability for this day
+    availability = await db.staff_availability.find(
+        {"day_of_week": day_of_week},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    avail_map = {a['staff_id']: a for a in availability}
+    
+    # Get today's attendance and breaks
+    today = date or datetime.now(timezone.utc).date().isoformat()
+    attendance_list = await db.staff_attendance.find(
+        {"attendance_date": today},
+        {"_id": 0}
+    ).to_list(1000)
+    attendance_map = {a['staff_id']: a for a in attendance_list}
+    
+    breaks_list = await db.staff_breaks.find(
+        {"break_date": today},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Group breaks by staff_id
+    breaks_map = {}
+    for b in breaks_list:
+        if b['staff_id'] not in breaks_map:
+            breaks_map[b['staff_id']] = []
+        breaks_map[b['staff_id']].append(b)
+    
+    # Get shifts for the day
+    shifts = await db.shifts.find(
+        {"shift_date": today},
+        {"_id": 0}
+    ).to_list(1000)
+    shifts_map = {}
+    for s in shifts:
+        if s['staff_id'] not in shifts_map:
+            shifts_map[s['staff_id']] = []
+        shifts_map[s['staff_id']].append(s)
+    
+    # Combine data
+    result = []
+    for staff in staff_list:
+        staff_id = staff['id']
+        avail = avail_map.get(staff_id, {})
+        att = attendance_map.get(staff_id)
+        staff_breaks = breaks_map.get(staff_id, [])
+        staff_shifts = shifts_map.get(staff_id, [])
+        
+        # Check if currently on break
+        on_break = any(b.get('is_active') for b in staff_breaks)
+        
+        result.append({
+            "staff_id": staff_id,
+            "staff_name": staff['full_name'],
+            "position": staff.get('position', ''),
+            "photo_url": staff.get('photo_url'),
+            "availability": {
+                "start_time": avail.get('start_time'),
+                "end_time": avail.get('end_time'),
+                "is_available": avail.get('is_available', True),
+                "notes": avail.get('notes')
+            } if avail else None,
+            "attendance": {
+                "is_clocked_in": att.get('is_clocked_in', False) if att else False,
+                "clock_in_time": att.get('clock_in_time') if att else None,
+                "clock_out_time": att.get('clock_out_time') if att else None
+            },
+            "on_break": on_break,
+            "breaks_today": len(staff_breaks),
+            "shifts_today": len(staff_shifts),
+            "shifts": staff_shifts
+        })
+    
+    return result
+
+@api_router.get("/team/availability/week")
+async def get_team_availability_week(start_date: str, current_user: User = Depends(get_current_user)):
+    """Get team availability for a week starting from start_date"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    # Get all staff
+    staff_list = await db.staff.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    
+    # Get all availability records
+    availability = await db.staff_availability.find({}, {"_id": 0}).to_list(1000)
+    
+    # Organize by staff_id and day
+    avail_map = {}
+    for a in availability:
+        key = f"{a['staff_id']}_{a['day_of_week']}"
+        avail_map[key] = a
+    
+    # Build week view
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    week_data = []
+    
+    for i in range(7):
+        day = start + timedelta(days=i)
+        day_of_week = day.weekday()
+        day_str = day.strftime("%Y-%m-%d")
+        
+        day_data = {
+            "date": day_str,
+            "day_name": day.strftime("%A"),
+            "day_of_week": day_of_week,
+            "staff": []
+        }
+        
+        for staff in staff_list:
+            key = f"{staff['id']}_{day_of_week}"
+            avail = avail_map.get(key)
+            
+            day_data["staff"].append({
+                "staff_id": staff['id'],
+                "staff_name": staff['full_name'],
+                "is_available": avail.get('is_available', True) if avail else True,
+                "start_time": avail.get('start_time') if avail else None,
+                "end_time": avail.get('end_time') if avail else None,
+                "notes": avail.get('notes') if avail else None
+            })
+        
+        week_data.append(day_data)
+    
+    return week_data
 
 # Invoice Routes
 @api_router.post("/invoices", response_model=Invoice)

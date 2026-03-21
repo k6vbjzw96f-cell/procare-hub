@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Pencil, Trash2, Upload, Clock, LogOut as LogOutIcon } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Upload, Clock, LogOut as LogOutIcon, Coffee, Play } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -26,6 +26,7 @@ const Staff = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [attendanceStatus, setAttendanceStatus] = useState({});
+  const [breakStatus, setBreakStatus] = useState({});
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -44,20 +45,32 @@ const Staff = () => {
       const response = await axios.get(`${API}/staff`, getAuthHeader());
       setStaff(response.data);
       
-      // Fetch attendance status for each staff member
+      // Fetch attendance and break status for each staff member
       const statusPromises = response.data.map(async (member) => {
         try {
-          const statusRes = await axios.get(`${API}/staff/${member.id}/attendance-status`, getAuthHeader());
-          return { id: member.id, status: statusRes.data };
+          const [statusRes, breakRes] = await Promise.all([
+            axios.get(`${API}/staff/${member.id}/attendance-status`, getAuthHeader()),
+            axios.get(`${API}/staff/${member.id}/break-status`, getAuthHeader())
+          ]);
+          return { 
+            id: member.id, 
+            attendance: statusRes.data,
+            break: breakRes.data
+          };
         } catch {
-          return { id: member.id, status: { is_clocked_in: false } };
+          return { id: member.id, attendance: { is_clocked_in: false }, break: { on_break: false } };
         }
       });
       
       const statuses = await Promise.all(statusPromises);
-      const statusMap = {};
-      statuses.forEach(s => { statusMap[s.id] = s.status; });
-      setAttendanceStatus(statusMap);
+      const attendanceMap = {};
+      const breakMap = {};
+      statuses.forEach(s => { 
+        attendanceMap[s.id] = s.attendance;
+        breakMap[s.id] = s.break;
+      });
+      setAttendanceStatus(attendanceMap);
+      setBreakStatus(breakMap);
     } catch (error) {
       toast.error('Failed to load staff');
     }
@@ -129,6 +142,26 @@ const Staff = () => {
       fetchStaff();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to clock out');
+    }
+  };
+
+  const handleStartBreak = async (staffId, breakType = 'meal') => {
+    try {
+      await axios.post(`${API}/staff/${staffId}/break/start?break_type=${breakType}`, {}, getAuthHeader());
+      toast.success('Break started');
+      fetchStaff();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to start break');
+    }
+  };
+
+  const handleEndBreak = async (staffId) => {
+    try {
+      const response = await axios.post(`${API}/staff/${staffId}/break/end`, {}, getAuthHeader());
+      toast.success(`Break ended. Duration: ${response.data.duration_minutes} minutes`);
+      fetchStaff();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to end break');
     }
   };
 
@@ -345,7 +378,7 @@ const Staff = () => {
                     <TableCell>${member.hourly_rate}/hr</TableCell>
                     <TableCell>{getScreeningBadge(member.screening_status)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {getStatusBadge(member.status)}
                         {attendanceStatus[member.id]?.is_clocked_in && (
                           <Badge variant="default" className="bg-emerald-500">
@@ -353,21 +386,52 @@ const Staff = () => {
                             On Duty
                           </Badge>
                         )}
+                        {breakStatus[member.id]?.on_break && (
+                          <Badge variant="default" className="bg-amber-500">
+                            <Coffee className="w-3 h-3 mr-1" />
+                            On Break
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 flex-wrap">
                         {attendanceStatus[member.id]?.is_clocked_in ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleClockOut(member.id)}
-                            data-testid={`clock-out-${member.id}`}
-                            className="border-rose-200 text-rose-600 hover:bg-rose-50"
-                          >
-                            <LogOutIcon className="w-4 h-4 mr-1" />
-                            Clock Out
-                          </Button>
+                          <>
+                            {breakStatus[member.id]?.on_break ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEndBreak(member.id)}
+                                data-testid={`end-break-${member.id}`}
+                                className="border-amber-200 text-amber-600 hover:bg-amber-50"
+                              >
+                                <Play className="w-4 h-4 mr-1" />
+                                End Break
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleStartBreak(member.id)}
+                                data-testid={`start-break-${member.id}`}
+                                className="border-amber-200 text-amber-600 hover:bg-amber-50"
+                              >
+                                <Coffee className="w-4 h-4 mr-1" />
+                                Break
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleClockOut(member.id)}
+                              data-testid={`clock-out-${member.id}`}
+                              className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                            >
+                              <LogOutIcon className="w-4 h-4 mr-1" />
+                              Clock Out
+                            </Button>
+                          </>
                         ) : (
                           <Button
                             variant="outline"

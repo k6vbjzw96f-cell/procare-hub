@@ -9,8 +9,9 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - **Authentication**: User registration/login with JWT tokens, role-based access (Admin, Coordinator, Support Worker), **Forgot Password with email reset code**
 - **Dashboard**: Overview with stats, quick actions, recent activity
 - **Client Management**: Add/edit clients with photo uploads, support needs tracking
-- **Staff Management**: Staff records with certifications, clock-in/out, photo uploads
+- **Staff Management**: Staff records with certifications, clock-in/out, **break tracking**, photo uploads
 - **Rostering & Scheduling**: Shift management and assignment
+- **Team Availability**: View staff schedules, day/week views, set availability per day
 - **Leave Management**: Leave requests with approval workflow
 - **Invoicing**: Create and manage invoices with line items
 - **Compliance Tracking**: Incident reporting and compliance records
