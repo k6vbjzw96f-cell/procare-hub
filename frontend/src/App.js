@@ -13,6 +13,7 @@ import HourLogging from '@/pages/HourLogging';
 import Vehicles from '@/pages/Vehicles';
 import SILHouses from '@/pages/SILHouses';
 import Facilities from '@/pages/Facilities';
+import Leave from '@/pages/Leave';
 import Settings from '@/pages/Settings';
 import Layout from '@/components/Layout';
 import '@/App.css';
@@ -78,6 +79,7 @@ function App() {
                     <Route path="/vehicles" element={<Vehicles />} />
                     <Route path="/houses" element={<SILHouses />} />
                     <Route path="/facilities" element={<Facilities />} />
+                    <Route path="/leave" element={<Leave />} />
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/compliance" element={<Compliance />} />
                     <Route path="/reports" element={<Reports />} />

@@ -50,7 +50,7 @@ const Login = ({ onLogin }) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-100 p-4">
       <Card className="w-full max-w-md shadow-xl border-slate-100" data-testid="login-card">
         <CardHeader className="space-y-3 text-center pb-6">
-          <div className="mx-auto w-24 h-24 flex items-center justify-center mb-2">
+          <div className="mx-auto w-32 h-32 flex items-center justify-center mb-2">
             <img 
               src="/procare-logo.jpeg" 
               alt="ProCare Hub Logo" 

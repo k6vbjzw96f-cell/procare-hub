@@ -467,6 +467,27 @@ class NotificationPreferences(BaseModel):
     quiet_hours_start: Optional[str] = None
     quiet_hours_end: Optional[str] = None
 
+class LeaveRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    leave_type: str  # annual, sick, personal, unpaid, carer
+    start_date: str
+    end_date: str
+    days_count: float
+    reason: str
+    status: str = "pending"  # pending, approved, rejected
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class LeaveRequestCreate(BaseModel):
+    leave_type: str
+    start_date: str
+    end_date: str
+    reason: str
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -1638,6 +1659,130 @@ async def update_notification_preferences(prefs_data: NotificationPreferences, c
     )
     
     return {"message": "Notification preferences updated successfully"}
+
+# Leave Request Routes
+@api_router.post("/leave/request", response_model=LeaveRequest)
+async def submit_leave_request(leave_data: LeaveRequestCreate, current_user: User = Depends(get_current_user)):
+    from datetime import datetime as dt
+    
+    # Calculate days count
+    start = dt.strptime(leave_data.start_date, "%Y-%m-%d")
+    end = dt.strptime(leave_data.end_date, "%Y-%m-%d")
+    days_count = (end - start).days + 1
+    
+    leave_request = LeaveRequest(
+        staff_id=current_user.id,
+        staff_name=current_user.full_name,
+        leave_type=leave_data.leave_type,
+        start_date=leave_data.start_date,
+        end_date=leave_data.end_date,
+        days_count=days_count,
+        reason=leave_data.reason
+    )
+    
+    doc = leave_request.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.leave_requests.insert_one(doc)
+    
+    # Notify admins
+    admins = await db.users.find({"role": "admin"}, {"_id": 0}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            admin['id'],
+            f"New Leave Request from {current_user.full_name}",
+            f"{leave_data.leave_type.capitalize()} leave for {days_count} days starting {leave_data.start_date}",
+            "leave",
+            None,
+            send_email=True
+        )
+    
+    return leave_request
+
+@api_router.get("/leave/requests", response_model=List[LeaveRequest])
+async def get_all_leave_requests(current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    requests = await db.leave_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    for req in requests:
+        if isinstance(req['created_at'], str):
+            req['created_at'] = datetime.fromisoformat(req['created_at'])
+        if req.get('reviewed_at') and isinstance(req['reviewed_at'], str):
+            req['reviewed_at'] = datetime.fromisoformat(req['reviewed_at'])
+    return requests
+
+@api_router.get("/leave/my-requests", response_model=List[LeaveRequest])
+async def get_my_leave_requests(current_user: User = Depends(get_current_user)):
+    requests = await db.leave_requests.find(
+        {"staff_id": current_user.id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    
+    for req in requests:
+        if isinstance(req['created_at'], str):
+            req['created_at'] = datetime.fromisoformat(req['created_at'])
+        if req.get('reviewed_at') and isinstance(req['reviewed_at'], str):
+            req['reviewed_at'] = datetime.fromisoformat(req['reviewed_at'])
+    return requests
+
+@api_router.put("/leave/{request_id}/approve")
+async def approve_leave_request(request_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    result = await db.leave_requests.update_one(
+        {"id": request_id},
+        {"$set": {
+            "status": "approved",
+            "reviewed_by": current_user.full_name,
+            "reviewed_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    
+    # Notify staff member
+    leave_req = await db.leave_requests.find_one({"id": request_id}, {"_id": 0})
+    if leave_req:
+        await create_notification(
+            leave_req['staff_id'],
+            "Leave Request Approved",
+            f"Your {leave_req['leave_type']} leave request has been approved.",
+            "leave",
+            None,
+            send_email=True
+        )
+    
+    return {"message": "Leave request approved"}
+
+@api_router.put("/leave/{request_id}/reject")
+async def reject_leave_request(request_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    result = await db.leave_requests.update_one(
+        {"id": request_id},
+        {"$set": {
+            "status": "rejected",
+            "reviewed_by": current_user.full_name,
+            "reviewed_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    
+    # Notify staff member
+    leave_req = await db.leave_requests.find_one({"id": request_id}, {"_id": 0})
+    if leave_req:
+        await create_notification(
+            leave_req['staff_id'],
+            "Leave Request Rejected",
+            f"Your {leave_req['leave_type']} leave request has been rejected.",
+            "leave",
+            None,
+            send_email=True
+        )
+    
+    return {"message": "Leave request rejected"}
 
 @api_router.get("/reports/incidents-summary")
 async def get_incidents_summary_report(current_user: User = Depends(get_current_user)):
