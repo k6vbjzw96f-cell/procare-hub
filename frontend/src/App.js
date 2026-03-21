@@ -15,6 +15,12 @@ import SILHouses from '@/pages/SILHouses';
 import Facilities from '@/pages/Facilities';
 import Leave from '@/pages/Leave';
 import Settings from '@/pages/Settings';
+import Medication from '@/pages/Medication';
+import Goals from '@/pages/Goals';
+import Communication from '@/pages/Communication';
+import Payments from '@/pages/Payments';
+import ComplianceCalendar from '@/pages/ComplianceCalendar';
+import Feedback from '@/pages/Feedback';
 import Layout from '@/components/Layout';
 import '@/App.css';
 
@@ -83,6 +89,12 @@ function App() {
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/compliance" element={<Compliance />} />
                     <Route path="/reports" element={<Reports />} />
+                    <Route path="/medication" element={<Medication />} />
+                    <Route path="/goals" element={<Goals />} />
+                    <Route path="/communication" element={<Communication />} />
+                    <Route path="/payments" element={<Payments />} />
+                    <Route path="/calendar" element={<ComplianceCalendar />} />
+                    <Route path="/feedback" element={<Feedback />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   </Routes>

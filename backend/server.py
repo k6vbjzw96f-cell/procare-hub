@@ -488,6 +488,133 @@ class LeaveRequestCreate(BaseModel):
     end_date: str
     reason: str
 
+# Medication Management Models
+class Medication(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_id: str
+    client_name: str
+    medication_name: str
+    dosage: str
+    frequency: str
+    start_date: str
+    end_date: Optional[str] = None
+    prescribing_doctor: Optional[str] = None
+    notes: Optional[str] = None
+    active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class MedicationCreate(BaseModel):
+    client_id: str
+    medication_name: str
+    dosage: str
+    frequency: str
+    start_date: str
+    end_date: Optional[str] = None
+    prescribing_doctor: Optional[str] = None
+    notes: Optional[str] = None
+
+class MedicationLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    medication_id: str
+    medication_name: str
+    administered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    administered_by: str
+    notes: Optional[str] = None
+
+# Goal Tracking Models
+class Goal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_id: str
+    client_name: str
+    goal_type: str  # short_term, long_term, daily
+    title: str
+    description: str
+    target_date: str
+    status: str = "active"  # active, achieved, cancelled
+    progress_percentage: int = 0
+    milestones: List[dict] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class GoalCreate(BaseModel):
+    client_id: str
+    goal_type: str
+    title: str
+    description: str
+    target_date: str
+
+# Communication Hub Models
+class Message(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    sender_id: str
+    sender_name: str
+    recipient_id: str
+    recipient_name: str
+    subject: str
+    message_text: str
+    is_read: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class MessageCreate(BaseModel):
+    recipient_id: str
+    subject: str
+    message_text: str
+
+# Compliance Calendar Models
+class ComplianceDeadline(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    deadline_type: str  # worker_screening, vehicle_rego, insurance, audit, plan_review
+    title: str
+    description: str
+    due_date: str
+    entity_type: Optional[str] = None  # client, staff, vehicle, organization
+    entity_id: Optional[str] = None
+    status: str = "pending"  # pending, completed, overdue
+    priority: str = "medium"  # low, medium, high, critical
+    completed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ComplianceDeadlineCreate(BaseModel):
+    deadline_type: str
+    title: str
+    description: str
+    due_date: str
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+    priority: str = "medium"
+
+# Feedback & Surveys Models
+class Survey(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    questions: List[dict] = []  # [{"question": "...", "type": "text/rating/choice"}]
+    target_audience: str  # clients, staff, all
+    status: str = "active"  # active, closed
+    created_by: str
+    response_count: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SurveyCreate(BaseModel):
+    title: str
+    description: str
+    questions: List[dict]
+    target_audience: str
+
+class SurveyResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    survey_id: str
+    respondent_id: str
+    respondent_name: str
+    answers: List[dict] = []
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -520,7 +647,7 @@ def check_permission(user: User, required_roles: List[str]):
     if user.role not in required_roles:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-async def create_notification(user_id: str, title: str, message: str, notification_type: str, action_url: Optional[str] = None, send_email: bool = False):
+async def create_notification(user_id: str, title: str, message: str, notification_type: str, action_url: Optional[str] = None, should_send_email: bool = False):
     notification = Notification(
         user_id=user_id,
         title=title,
@@ -532,7 +659,7 @@ async def create_notification(user_id: str, title: str, message: str, notificati
     doc['created_at'] = doc['created_at'].isoformat()
     await db.notifications.insert_one(doc)
     
-    if send_email:
+    if should_send_email:
         user_doc = await db.users.find_one({"id": user_id}, {"_id": 0})
         if user_doc and user_doc.get('email'):
             html = f"""
@@ -655,7 +782,7 @@ async def create_client(client_data: ClientCreate, current_user: User = Depends(
         f"Client {client.full_name} has been added to the system.",
         "client",
         f"/clients/{client.id}",
-        send_email=True
+        should_send_email=True
     )
     
     return client
@@ -821,7 +948,7 @@ async def create_shift(shift_data: ShiftCreate, current_user: User = Depends(get
             f"You have been assigned to {client['full_name']} on {shift.shift_date} at {shift.start_time}.",
             "shift",
             f"/rostering",
-            send_email=True
+            should_send_email=True
         )
     
     return shift
@@ -1139,6 +1266,19 @@ async def update_invoice(invoice_id: str, update_data: dict, current_user: User 
     if isinstance(updated['created_at'], str):
         updated['created_at'] = datetime.fromisoformat(updated['created_at'])
     return Invoice(**updated)
+
+@api_router.put("/invoices/{invoice_id}/status")
+async def update_invoice_status(invoice_id: str, status: str, current_user: User = Depends(get_current_user)):
+    """Update invoice status (for payment processing)"""
+    check_permission(current_user, ["admin", "coordinator"])
+    valid_statuses = ["draft", "sent", "paid", "overdue", "cancelled"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    
+    result = await db.invoices.update_one({"id": invoice_id}, {"$set": {"status": status}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return {"message": f"Invoice status updated to {status}"}
 
 # Compliance Routes
 @api_router.post("/compliance", response_model=ComplianceRecord)
@@ -1693,7 +1833,7 @@ async def submit_leave_request(leave_data: LeaveRequestCreate, current_user: Use
             f"{leave_data.leave_type.capitalize()} leave for {days_count} days starting {leave_data.start_date}",
             "leave",
             None,
-            send_email=True
+            should_send_email=True
         )
     
     return leave_request
@@ -1749,7 +1889,7 @@ async def approve_leave_request(request_id: str, current_user: User = Depends(ge
             f"Your {leave_req['leave_type']} leave request has been approved.",
             "leave",
             None,
-            send_email=True
+            should_send_email=True
         )
     
     return {"message": "Leave request approved"}
@@ -1779,10 +1919,210 @@ async def reject_leave_request(request_id: str, current_user: User = Depends(get
             f"Your {leave_req['leave_type']} leave request has been rejected.",
             "leave",
             None,
-            send_email=True
+            should_send_email=True
         )
     
     return {"message": "Leave request rejected"}
+
+# Medication Management Routes
+@api_router.post("/medications", response_model=Medication)
+async def create_medication(med_data: MedicationCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    client = await db.clients.find_one({"id": med_data.client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    medication = Medication(**med_data.model_dump(), client_name=client['full_name'])
+    doc = medication.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.medications.insert_one(doc)
+    return medication
+
+@api_router.get("/medications/client/{client_id}", response_model=List[Medication])
+async def get_client_medications(client_id: str, current_user: User = Depends(get_current_user)):
+    meds = await db.medications.find({"client_id": client_id, "active": True}, {"_id": 0}).to_list(1000)
+    for med in meds:
+        if isinstance(med['created_at'], str):
+            med['created_at'] = datetime.fromisoformat(med['created_at'])
+    return meds
+
+@api_router.post("/medications/{medication_id}/log")
+async def log_medication(medication_id: str, notes: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    med = await db.medications.find_one({"id": medication_id}, {"_id": 0})
+    if not med:
+        raise HTTPException(status_code=404, detail="Medication not found")
+    
+    log = MedicationLog(
+        medication_id=medication_id,
+        medication_name=med['medication_name'],
+        administered_by=current_user.full_name,
+        notes=notes
+    )
+    doc = log.model_dump()
+    doc['administered_at'] = doc['administered_at'].isoformat()
+    await db.medication_logs.insert_one(doc)
+    return {"message": "Medication administered"}
+
+# Goal Tracking Routes
+@api_router.post("/goals", response_model=Goal)
+async def create_goal(goal_data: GoalCreate, current_user: User = Depends(get_current_user)):
+    client = await db.clients.find_one({"id": goal_data.client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    goal = Goal(**goal_data.model_dump(), client_name=client['full_name'])
+    doc = goal.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.goals.insert_one(doc)
+    return goal
+
+@api_router.get("/goals/client/{client_id}", response_model=List[Goal])
+async def get_client_goals(client_id: str, current_user: User = Depends(get_current_user)):
+    goals = await db.goals.find({"client_id": client_id}, {"_id": 0}).to_list(1000)
+    for goal in goals:
+        if isinstance(goal['created_at'], str):
+            goal['created_at'] = datetime.fromisoformat(goal['created_at'])
+    return goals
+
+@api_router.put("/goals/{goal_id}/progress")
+async def update_goal_progress(goal_id: str, progress: int, current_user: User = Depends(get_current_user)):
+    await db.goals.update_one({"id": goal_id}, {"$set": {"progress_percentage": progress}})
+    if progress >= 100:
+        await db.goals.update_one({"id": goal_id}, {"$set": {"status": "achieved"}})
+    return {"message": "Progress updated"}
+
+# Communication Hub Routes
+@api_router.post("/messages", response_model=Message)
+async def send_message(message_data: MessageCreate, current_user: User = Depends(get_current_user)):
+    recipient = await db.users.find_one({"id": message_data.recipient_id}, {"_id": 0})
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    
+    message = Message(
+        sender_id=current_user.id,
+        sender_name=current_user.full_name,
+        recipient_id=message_data.recipient_id,
+        recipient_name=recipient['full_name'],
+        subject=message_data.subject,
+        message_text=message_data.message_text
+    )
+    doc = message.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.messages.insert_one(doc)
+    
+    await create_notification(
+        message_data.recipient_id,
+        f"New message from {current_user.full_name}",
+        message_data.subject,
+        "message",
+        None,
+        should_send_email=True
+    )
+    return message
+
+@api_router.get("/messages/inbox", response_model=List[Message])
+async def get_inbox(current_user: User = Depends(get_current_user)):
+    # Get both sent and received messages for full conversation view
+    messages = await db.messages.find(
+        {"$or": [{"recipient_id": current_user.id}, {"sender_id": current_user.id}]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    for msg in messages:
+        if isinstance(msg['created_at'], str):
+            msg['created_at'] = datetime.fromisoformat(msg['created_at'])
+    return messages
+
+@api_router.get("/users/list")
+async def list_users(current_user: User = Depends(get_current_user)):
+    """Get list of all users for messaging dropdown"""
+    users = await db.users.find(
+        {"id": {"$ne": current_user.id}},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "role": 1}
+    ).to_list(1000)
+    return users
+
+@api_router.put("/messages/{message_id}/read")
+async def mark_message_read(message_id: str, current_user: User = Depends(get_current_user)):
+    await db.messages.update_one(
+        {"id": message_id, "recipient_id": current_user.id},
+        {"$set": {"is_read": True}}
+    )
+    return {"message": "Marked as read"}
+
+# Compliance Calendar Routes
+@api_router.post("/compliance/deadlines", response_model=ComplianceDeadline)
+async def create_compliance_deadline(deadline_data: ComplianceDeadlineCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    deadline = ComplianceDeadline(**deadline_data.model_dump())
+    doc = deadline.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.compliance_deadlines.insert_one(doc)
+    return deadline
+
+@api_router.get("/compliance/deadlines", response_model=List[ComplianceDeadline])
+async def get_compliance_deadlines(current_user: User = Depends(get_current_user)):
+    deadlines = await db.compliance_deadlines.find({}, {"_id": 0}).sort("due_date", 1).to_list(1000)
+    for deadline in deadlines:
+        if isinstance(deadline['created_at'], str):
+            deadline['created_at'] = datetime.fromisoformat(deadline['created_at'])
+        if deadline.get('completed_at') and isinstance(deadline['completed_at'], str):
+            deadline['completed_at'] = datetime.fromisoformat(deadline['completed_at'])
+    return deadlines
+
+@api_router.put("/compliance/deadlines/{deadline_id}/complete")
+async def complete_deadline(deadline_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    await db.compliance_deadlines.update_one(
+        {"id": deadline_id},
+        {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Deadline marked as complete"}
+
+# Feedback & Surveys Routes
+@api_router.post("/surveys", response_model=Survey)
+async def create_survey(survey_data: SurveyCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    survey = Survey(**survey_data.model_dump(), created_by=current_user.full_name)
+    doc = survey.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.surveys.insert_one(doc)
+    return survey
+
+@api_router.get("/surveys", response_model=List[Survey])
+async def get_surveys(current_user: User = Depends(get_current_user)):
+    surveys = await db.surveys.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    for survey in surveys:
+        if isinstance(survey['created_at'], str):
+            survey['created_at'] = datetime.fromisoformat(survey['created_at'])
+    return surveys
+
+@api_router.post("/surveys/{survey_id}/respond", response_model=SurveyResponse)
+async def submit_survey_response(survey_id: str, answers: List[dict], current_user: User = Depends(get_current_user)):
+    survey = await db.surveys.find_one({"id": survey_id}, {"_id": 0})
+    if not survey or survey['status'] != 'active':
+        raise HTTPException(status_code=404, detail="Survey not found or closed")
+    
+    response = SurveyResponse(
+        survey_id=survey_id,
+        respondent_id=current_user.id,
+        respondent_name=current_user.full_name,
+        answers=answers
+    )
+    doc = response.model_dump()
+    doc['completed_at'] = doc['completed_at'].isoformat()
+    await db.survey_responses.insert_one(doc)
+    
+    await db.surveys.update_one({"id": survey_id}, {"$inc": {"response_count": 1}})
+    return response
+
+@api_router.get("/surveys/{survey_id}/responses")
+async def get_survey_responses(survey_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    responses = await db.survey_responses.find({"survey_id": survey_id}, {"_id": 0}).to_list(1000)
+    for resp in responses:
+        if isinstance(resp['completed_at'], str):
+            resp['completed_at'] = datetime.fromisoformat(resp['completed_at'])
+    return responses
 
 @api_router.get("/reports/incidents-summary")
 async def get_incidents_summary_report(current_user: User = Depends(get_current_user)):
