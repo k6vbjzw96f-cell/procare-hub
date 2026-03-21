@@ -414,6 +414,46 @@ class FacilityCreate(BaseModel):
     equipment: List[str] = []
     booking_required: bool = False
 
+class Organization(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    organization_name: str
+    abn: Optional[str] = None
+    ndis_provider_number: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    address: Optional[str] = None
+    logo_url: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class OrganizationUpdate(BaseModel):
+    organization_name: Optional[str] = None
+    abn: Optional[str] = None
+    ndis_provider_number: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    address: Optional[str] = None
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+class NotificationPreferences(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    user_id: str
+    email_notifications: bool = True
+    shift_reminders: bool = True
+    incident_alerts: bool = True
+    invoice_notifications: bool = True
+    compliance_alerts: bool = True
+    quiet_hours_start: Optional[str] = None
+    quiet_hours_end: Optional[str] = None
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -1308,6 +1348,132 @@ async def delete_facility(facility_id: str, current_user: User = Depends(get_cur
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Facility not found")
     return {"message": "Facility deleted successfully"}
+
+# Settings Routes
+@api_router.put("/settings/profile")
+async def update_profile(profile_data: UserProfileUpdate, current_user: User = Depends(get_current_user)):
+    update_dict = {k: v for k, v in profile_data.model_dump().items() if v is not None}
+    
+    if 'email' in update_dict:
+        existing = await db.users.find_one({"email": update_dict['email'], "id": {"$ne": current_user.id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+    
+    if update_dict:
+        await db.users.update_one({"id": current_user.id}, {"$set": update_dict})
+    
+    updated_user = await db.users.find_one({"id": current_user.id}, {"_id": 0, "password": 0})
+    if isinstance(updated_user['created_at'], str):
+        updated_user['created_at'] = datetime.fromisoformat(updated_user['created_at'])
+    
+    return User(**updated_user)
+
+@api_router.post("/settings/change-password")
+async def change_password(password_data: PasswordChange, current_user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0})
+    
+    if not verify_password(password_data.current_password, user_doc['password']):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    new_hashed = hash_password(password_data.new_password)
+    await db.users.update_one({"id": current_user.id}, {"$set": {"password": new_hashed}})
+    
+    return {"message": "Password changed successfully"}
+
+@api_router.post("/settings/profile-photo")
+async def upload_profile_photo(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    path = f"{APP_NAME}/uploads/users/{current_user.id}/photo.{ext}"
+    data = await file.read()
+    result = put_object(path, data, file.content_type or "image/jpeg")
+    
+    photo_url = f"/api/files/user-photo/{current_user.id}"
+    await db.users.update_one({"id": current_user.id}, {"$set": {"photo_url": photo_url}})
+    
+    file_record = FileRecord(
+        storage_path=result["path"],
+        original_filename=file.filename,
+        content_type=file.content_type or "image/jpeg",
+        size=result["size"],
+        uploaded_by=current_user.id,
+        entity_type="user_photo",
+        entity_id=current_user.id
+    )
+    doc = file_record.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.files.insert_one(doc)
+    
+    return {"photo_url": photo_url}
+
+@api_router.get("/files/user-photo/{user_id}")
+async def get_user_photo(user_id: str):
+    record = await db.files.find_one({
+        "entity_type": "user_photo",
+        "entity_id": user_id,
+        "is_deleted": False
+    }, {"_id": 0}, sort=[("created_at", -1)])
+    
+    if not record:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    
+    data, content_type = get_object(record["storage_path"])
+    return Response(content=data, media_type=record.get("content_type", content_type))
+
+@api_router.get("/settings/organization")
+async def get_organization(current_user: User = Depends(get_current_user)):
+    org = await db.organization.find_one({}, {"_id": 0})
+    if not org:
+        # Create default organization
+        default_org = Organization(organization_name="ProCare Hub")
+        doc = default_org.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.organization.insert_one(doc)
+        return default_org
+    if isinstance(org['created_at'], str):
+        org['created_at'] = datetime.fromisoformat(org['created_at'])
+    return Organization(**org)
+
+@api_router.put("/settings/organization")
+async def update_organization(org_data: OrganizationUpdate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin"])
+    
+    update_dict = {k: v for k, v in org_data.model_dump().items() if v is not None}
+    
+    if update_dict:
+        result = await db.organization.update_one({}, {"$set": update_dict}, upsert=False)
+        if result.matched_count == 0:
+            # Create new organization
+            org = Organization(**org_data.model_dump())
+            doc = org.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.organization.insert_one(doc)
+            return org
+    
+    updated = await db.organization.find_one({}, {"_id": 0})
+    if isinstance(updated['created_at'], str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Organization(**updated)
+
+@api_router.get("/settings/notifications")
+async def get_notification_preferences(current_user: User = Depends(get_current_user)):
+    prefs = await db.notification_preferences.find_one({"user_id": current_user.id}, {"_id": 0})
+    if not prefs:
+        # Return defaults
+        return NotificationPreferences(user_id=current_user.id)
+    return NotificationPreferences(**prefs)
+
+@api_router.put("/settings/notifications")
+async def update_notification_preferences(prefs_data: NotificationPreferences, current_user: User = Depends(get_current_user)):
+    prefs_dict = prefs_data.model_dump()
+    prefs_dict['user_id'] = current_user.id
+    
+    await db.notification_preferences.update_one(
+        {"user_id": current_user.id},
+        {"$set": prefs_dict},
+        upsert=True
+    )
+    
+    return {"message": "Notification preferences updated successfully"}
 
 @api_router.get("/reports/incidents-summary")
 async def get_incidents_summary_report(current_user: User = Depends(get_current_user)):

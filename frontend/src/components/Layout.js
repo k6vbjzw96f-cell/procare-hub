@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
@@ -44,6 +44,7 @@ const Layout = ({ children, user, onLogout }) => {
     { name: 'Invoices', href: '/invoices', icon: FileText, roles: ['admin', 'coordinator'] },
     { name: 'Compliance', href: '/compliance', icon: Shield, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['admin', 'coordinator'] },
+    { name: 'Settings', href: '/settings', icon: Settings, roles: ['admin', 'coordinator', 'support_worker'] },
   ];
 
   const filteredNavigation = navigation.filter(item => 

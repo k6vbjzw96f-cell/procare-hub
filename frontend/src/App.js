@@ -13,6 +13,7 @@ import HourLogging from '@/pages/HourLogging';
 import Vehicles from '@/pages/Vehicles';
 import SILHouses from '@/pages/SILHouses';
 import Facilities from '@/pages/Facilities';
+import Settings from '@/pages/Settings';
 import Layout from '@/components/Layout';
 import '@/App.css';
 
@@ -80,6 +81,7 @@ function App() {
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/compliance" element={<Compliance />} />
                     <Route path="/reports" element={<Reports />} />
+                    <Route path="/settings" element={<Settings />} />
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 </Layout>
