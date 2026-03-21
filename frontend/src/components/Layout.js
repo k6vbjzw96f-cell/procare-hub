@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
@@ -38,6 +38,9 @@ const Layout = ({ children, user, onLogout }) => {
     { name: 'Staff', href: '/staff', icon: UserSquare, roles: ['admin', 'coordinator'] },
     { name: 'Rostering', href: '/rostering', icon: Calendar, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Hour Logging', href: '/hours', icon: Clock, roles: ['support_worker'] },
+    { name: 'Vehicles', href: '/vehicles', icon: Car, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'SIL Houses', href: '/houses', icon: Home, roles: ['admin', 'coordinator'] },
+    { name: 'Facilities', href: '/facilities', icon: Building2, roles: ['admin', 'coordinator'] },
     { name: 'Invoices', href: '/invoices', icon: FileText, roles: ['admin', 'coordinator'] },
     { name: 'Compliance', href: '/compliance', icon: Shield, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['admin', 'coordinator'] },

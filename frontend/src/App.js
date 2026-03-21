@@ -10,6 +10,9 @@ import Invoices from '@/pages/Invoices';
 import Compliance from '@/pages/Compliance';
 import Reports from '@/pages/Reports';
 import HourLogging from '@/pages/HourLogging';
+import Vehicles from '@/pages/Vehicles';
+import SILHouses from '@/pages/SILHouses';
+import Facilities from '@/pages/Facilities';
 import Layout from '@/components/Layout';
 import '@/App.css';
 
@@ -71,6 +74,9 @@ function App() {
                     <Route path="/staff" element={<Staff />} />
                     <Route path="/rostering" element={<Rostering />} />
                     <Route path="/hours" element={<HourLogging />} />
+                    <Route path="/vehicles" element={<Vehicles />} />
+                    <Route path="/houses" element={<SILHouses />} />
+                    <Route path="/facilities" element={<Facilities />} />
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/compliance" element={<Compliance />} />
                     <Route path="/reports" element={<Reports />} />

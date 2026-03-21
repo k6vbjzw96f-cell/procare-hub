@@ -306,6 +306,114 @@ class DashboardStats(BaseModel):
     open_compliance_issues: int
     total_revenue: float
 
+class Vehicle(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    make: str
+    model: str
+    year: int
+    registration: str
+    vin: Optional[str] = None
+    owner_type: str  # "client", "organization"
+    owner_id: Optional[str] = None
+    owner_name: Optional[str] = None
+    status: str = "active"
+    registration_expiry: Optional[str] = None
+    insurance_expiry: Optional[str] = None
+    last_service_date: Optional[str] = None
+    next_service_due: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class VehicleCreate(BaseModel):
+    make: str
+    model: str
+    year: int
+    registration: str
+    vin: Optional[str] = None
+    owner_type: str
+    owner_id: Optional[str] = None
+    registration_expiry: Optional[str] = None
+    insurance_expiry: Optional[str] = None
+
+class VehicleLogEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    vehicle_id: str
+    vehicle_registration: str
+    driver_id: str
+    driver_name: str
+    log_date: str
+    start_time: str
+    end_time: Optional[str] = None
+    odometer_start: int
+    odometer_end: Optional[int] = None
+    destination: str
+    purpose: str
+    fuel_added: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class VehicleLogCreate(BaseModel):
+    vehicle_id: str
+    log_date: str
+    start_time: str
+    end_time: Optional[str] = None
+    odometer_start: int
+    odometer_end: Optional[int] = None
+    destination: str
+    purpose: str
+    fuel_added: Optional[float] = None
+    notes: Optional[str] = None
+
+class SILHouse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    property_name: str
+    address: str
+    property_type: str  # "house", "apartment", "unit"
+    bedrooms: int
+    capacity: int
+    current_occupancy: int = 0
+    status: str = "active"
+    features: List[str] = []
+    photo_url: Optional[str] = None
+    manager_id: Optional[str] = None
+    manager_name: Optional[str] = None
+    residents: List[str] = []  # client IDs
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SILHouseCreate(BaseModel):
+    property_name: str
+    address: str
+    property_type: str
+    bedrooms: int
+    capacity: int
+    features: List[str] = []
+    manager_id: Optional[str] = None
+
+class Facility(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    facility_name: str
+    facility_type: str  # "gym", "therapy room", "kitchen", "recreation", "other"
+    location: str
+    capacity: int
+    equipment: List[str] = []
+    status: str = "available"
+    booking_required: bool = False
+    photo_url: Optional[str] = None
+    last_inspection_date: Optional[str] = None
+    next_inspection_due: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class FacilityCreate(BaseModel):
+    facility_name: str
+    facility_type: str
+    location: str
+    capacity: int
+    equipment: List[str] = []
+    booking_required: bool = False
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -972,6 +1080,234 @@ async def get_budget_utilization_report(current_user: User = Depends(get_current
         })
     
     return {"clients": report}
+
+# Vehicle Routes
+@api_router.post("/vehicles", response_model=Vehicle)
+async def create_vehicle(vehicle_data: VehicleCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    owner_name = None
+    if vehicle_data.owner_id:
+        if vehicle_data.owner_type == "client":
+            owner = await db.clients.find_one({"id": vehicle_data.owner_id}, {"_id": 0})
+            owner_name = owner['full_name'] if owner else None
+        elif vehicle_data.owner_type == "organization":
+            owner_name = "ProCare Hub"
+    
+    vehicle_dict = vehicle_data.model_dump()
+    vehicle_dict['owner_name'] = owner_name
+    vehicle = Vehicle(**vehicle_dict)
+    doc = vehicle.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.vehicles.insert_one(doc)
+    return vehicle
+
+@api_router.get("/vehicles", response_model=List[Vehicle])
+async def get_vehicles(current_user: User = Depends(get_current_user)):
+    vehicles = await db.vehicles.find({}, {"_id": 0}).to_list(1000)
+    for vehicle in vehicles:
+        if isinstance(vehicle['created_at'], str):
+            vehicle['created_at'] = datetime.fromisoformat(vehicle['created_at'])
+    return vehicles
+
+@api_router.get("/vehicles/{vehicle_id}", response_model=Vehicle)
+async def get_vehicle(vehicle_id: str, current_user: User = Depends(get_current_user)):
+    vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    if isinstance(vehicle['created_at'], str):
+        vehicle['created_at'] = datetime.fromisoformat(vehicle['created_at'])
+    return Vehicle(**vehicle)
+
+@api_router.put("/vehicles/{vehicle_id}", response_model=Vehicle)
+async def update_vehicle(vehicle_id: str, vehicle_data: VehicleCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    result = await db.vehicles.update_one({"id": vehicle_id}, {"$set": vehicle_data.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    updated = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
+    if isinstance(updated['created_at'], str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Vehicle(**updated)
+
+@api_router.delete("/vehicles/{vehicle_id}")
+async def delete_vehicle(vehicle_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin"])
+    result = await db.vehicles.delete_one({"id": vehicle_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return {"message": "Vehicle deleted successfully"}
+
+# Vehicle Log Routes
+@api_router.post("/vehicles/{vehicle_id}/logs", response_model=VehicleLogEntry)
+async def create_vehicle_log(vehicle_id: str, log_data: VehicleLogCreate, current_user: User = Depends(get_current_user)):
+    vehicle = await db.vehicles.find_one({"id": vehicle_id}, {"_id": 0})
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    log = VehicleLogEntry(
+        vehicle_id=vehicle_id,
+        vehicle_registration=vehicle['registration'],
+        driver_id=current_user.id,
+        driver_name=current_user.full_name,
+        **log_data.model_dump()
+    )
+    doc = log.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.vehicle_logs.insert_one(doc)
+    return log
+
+@api_router.get("/vehicles/{vehicle_id}/logs", response_model=List[VehicleLogEntry])
+async def get_vehicle_logs(vehicle_id: str, current_user: User = Depends(get_current_user)):
+    logs = await db.vehicle_logs.find({"vehicle_id": vehicle_id}, {"_id": 0}).to_list(1000)
+    for log in logs:
+        if isinstance(log['created_at'], str):
+            log['created_at'] = datetime.fromisoformat(log['created_at'])
+    return logs
+
+@api_router.get("/vehicle-logs", response_model=List[VehicleLogEntry])
+async def get_all_vehicle_logs(current_user: User = Depends(get_current_user)):
+    logs = await db.vehicle_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    for log in logs:
+        if isinstance(log['created_at'], str):
+            log['created_at'] = datetime.fromisoformat(log['created_at'])
+    return logs
+
+# SIL House Routes
+@api_router.post("/houses", response_model=SILHouse)
+async def create_house(house_data: SILHouseCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    manager_name = None
+    if house_data.manager_id:
+        manager = await db.staff.find_one({"id": house_data.manager_id}, {"_id": 0})
+        manager_name = manager['full_name'] if manager else None
+    
+    house_dict = house_data.model_dump()
+    house_dict['manager_name'] = manager_name
+    house = SILHouse(**house_dict)
+    doc = house.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.houses.insert_one(doc)
+    return house
+
+@api_router.get("/houses", response_model=List[SILHouse])
+async def get_houses(current_user: User = Depends(get_current_user)):
+    houses = await db.houses.find({}, {"_id": 0}).to_list(1000)
+    for house in houses:
+        if isinstance(house['created_at'], str):
+            house['created_at'] = datetime.fromisoformat(house['created_at'])
+    return houses
+
+@api_router.get("/houses/{house_id}", response_model=SILHouse)
+async def get_house(house_id: str, current_user: User = Depends(get_current_user)):
+    house = await db.houses.find_one({"id": house_id}, {"_id": 0})
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    if isinstance(house['created_at'], str):
+        house['created_at'] = datetime.fromisoformat(house['created_at'])
+    return SILHouse(**house)
+
+@api_router.put("/houses/{house_id}", response_model=SILHouse)
+async def update_house(house_id: str, house_data: SILHouseCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    result = await db.houses.update_one({"id": house_id}, {"$set": house_data.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="House not found")
+    updated = await db.houses.find_one({"id": house_id}, {"_id": 0})
+    if isinstance(updated['created_at'], str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return SILHouse(**updated)
+
+@api_router.delete("/houses/{house_id}")
+async def delete_house(house_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin"])
+    result = await db.houses.delete_one({"id": house_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="House not found")
+    return {"message": "House deleted successfully"}
+
+@api_router.post("/houses/{house_id}/residents/{client_id}")
+async def add_resident(house_id: str, client_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    house = await db.houses.find_one({"id": house_id}, {"_id": 0})
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    
+    if client_id in house.get('residents', []):
+        raise HTTPException(status_code=400, detail="Client already a resident")
+    
+    if house.get('current_occupancy', 0) >= house['capacity']:
+        raise HTTPException(status_code=400, detail="House at full capacity")
+    
+    await db.houses.update_one(
+        {"id": house_id},
+        {
+            "$push": {"residents": client_id},
+            "$inc": {"current_occupancy": 1}
+        }
+    )
+    return {"message": "Resident added successfully"}
+
+@api_router.delete("/houses/{house_id}/residents/{client_id}")
+async def remove_resident(house_id: str, client_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    await db.houses.update_one(
+        {"id": house_id},
+        {
+            "$pull": {"residents": client_id},
+            "$inc": {"current_occupancy": -1}
+        }
+    )
+    return {"message": "Resident removed successfully"}
+
+# Facility Routes
+@api_router.post("/facilities", response_model=Facility)
+async def create_facility(facility_data: FacilityCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    facility = Facility(**facility_data.model_dump())
+    doc = facility.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.facilities.insert_one(doc)
+    return facility
+
+@api_router.get("/facilities", response_model=List[Facility])
+async def get_facilities(current_user: User = Depends(get_current_user)):
+    facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
+    for facility in facilities:
+        if isinstance(facility['created_at'], str):
+            facility['created_at'] = datetime.fromisoformat(facility['created_at'])
+    return facilities
+
+@api_router.get("/facilities/{facility_id}", response_model=Facility)
+async def get_facility(facility_id: str, current_user: User = Depends(get_current_user)):
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    if isinstance(facility['created_at'], str):
+        facility['created_at'] = datetime.fromisoformat(facility['created_at'])
+    return Facility(**facility)
+
+@api_router.put("/facilities/{facility_id}", response_model=Facility)
+async def update_facility(facility_id: str, facility_data: FacilityCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    result = await db.facilities.update_one({"id": facility_id}, {"$set": facility_data.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if isinstance(updated['created_at'], str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Facility(**updated)
+
+@api_router.delete("/facilities/{facility_id}")
+async def delete_facility(facility_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin"])
+    result = await db.facilities.delete_one({"id": facility_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    return {"message": "Facility deleted successfully"}
 
 @api_router.get("/reports/incidents-summary")
 async def get_incidents_summary_report(current_user: User = Depends(get_current_user)):
