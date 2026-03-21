@@ -6,13 +6,13 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 ## Core Features
 
 ### Implemented (Complete)
-- **Authentication**: User registration/login with JWT tokens, role-based access (Admin, Coordinator, Support Worker), **Forgot Password with email reset code**
+- **Authentication**: User registration/login with JWT tokens, role-based access (Admin, Coordinator, Support Worker), **Forgot Password with email reset code**, **Organization SSO (Microsoft & Google)** ✅
 - **Dashboard**: Overview with stats, quick actions, recent activity
 - **Client Management**: Add/edit clients with photo uploads, support needs tracking
 - **Staff Management**: Staff records with certifications, clock-in/out, **break tracking**, photo uploads
 - **Rostering & Scheduling**: Shift management and assignment
 - **Team Availability**: View staff schedules, day/week views, set availability per day
-- **HR Module** (NEW):
+- **HR Module**:
   - Employee Onboarding (checklists, task tracking)
   - Performance Reviews (scheduling, ratings, acknowledgment)
   - Training & Certifications (courses, assignments, expiry tracking)
@@ -34,7 +34,7 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - Organization settings
 - Notification preferences
 - Security settings
-- **Integrations tab** (NEW)
+- **Integrations tab**
 
 ### New Features (March 2026 - Complete)
 1. **Medication Management**: Track participant medications, dosages, administration logs
@@ -56,6 +56,15 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
    - Create signature requests, track status, mock signing for demo
    - Mock mode for demo (add SIGNWELL_API_KEY for real integration)
 
+9. **Organization SSO (NEW - March 21, 2026)** ✅:
+   - Microsoft Azure AD SSO ("Sign in with Microsoft")
+   - Google Workspace SSO ("Sign in with Google")
+   - "Sign in with your organization" section on login page
+   - Demo mode enabled - creates demo SSO users for testing
+   - To enable real SSO:
+     - Microsoft: Add MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_TENANT_ID to backend/.env
+     - Google: Add GOOGLE_SSO_CLIENT_ID, GOOGLE_SSO_CLIENT_SECRET to backend/.env
+
 ## Technical Stack
 - **Frontend**: React, Tailwind CSS, Shadcn/UI components
 - **Backend**: FastAPI (Python)
@@ -63,7 +72,8 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - **File Storage**: Emergent Object Storage
 
 ## API Endpoints Summary
-- Authentication: /api/auth/register, /api/auth/login
+- Authentication: /api/auth/register, /api/auth/login, /api/auth/forgot-password, /api/auth/reset-password
+- **SSO Auth (NEW)**: /api/auth/sso/microsoft/url, /api/auth/sso/microsoft/callback, /api/auth/sso/google/url, /api/auth/sso/google/callback
 - Clients: /api/clients (CRUD)
 - Staff: /api/staff (CRUD), /api/staff/{id}/clockin, /api/staff/{id}/clockout
 - Leave: /api/leave/request, /api/leave/requests, /api/leave/{id}/approve
@@ -73,8 +83,8 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - Compliance Deadlines: /api/compliance/deadlines, /api/compliance/deadlines/{id}/complete
 - Surveys: /api/surveys, /api/surveys/{id}/respond, /api/surveys/{id}/responses
 - Invoices: /api/invoices, /api/invoices/{id}/status
-- **Calendar**: /api/calendar/status, /api/calendar/auth-url, /api/calendar/events, /api/calendar/sync-shift/{id}
-- **Documents**: /api/documents/status, /api/documents/templates, /api/documents/signature-request, /api/documents/signature-requests
+- Calendar: /api/calendar/status, /api/calendar/auth-url, /api/calendar/events, /api/calendar/sync-shift/{id}
+- Documents: /api/documents/status, /api/documents/templates, /api/documents/signature-request, /api/documents/signature-requests
 
 ## User Roles
 1. **Admin**: Full system access
@@ -84,6 +94,8 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 ## Test Credentials
 - Email: testadmin@procare.com
 - Password: test123
+- Demo Microsoft SSO User: demo.user@organization.onmicrosoft.com
+- Demo Google SSO User: demo.user@workspace.google.com
 
 ---
 
@@ -92,6 +104,8 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 ### P1 - Upcoming (Require API Keys)
 - **Google Calendar - Real Integration**: Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET
 - **SignWell - Real Integration**: Add SIGNWELL_API_KEY
+- **Microsoft SSO - Real Integration**: Add MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_TENANT_ID
+- **Google SSO - Real Integration**: Add GOOGLE_SSO_CLIENT_ID, GOOGLE_SSO_CLIENT_SECRET
 - **Xero Accounting Integration**: Connect to accounting system
 
 ### P2 - Future
@@ -103,6 +117,6 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - Mobile App (React Native)
 
 ### Technical Debt
-- Refactor server.py (2500+ lines) into modular structure using FastAPI APIRouter
+- Refactor server.py (4300+ lines) into modular structure using FastAPI APIRouter
 - Create reusable frontend components for tables and modals
 - Add comprehensive error handling and logging
