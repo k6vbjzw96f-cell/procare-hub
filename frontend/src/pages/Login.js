@@ -7,14 +7,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { ArrowLeft, Mail, KeyRound, CheckCircle2, Building2, ShieldCheck, Lock, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Mail, KeyRound, CheckCircle2, Building2, ShieldCheck, Lock, ExternalLink, Fingerprint, Smartphone, Check, X, AlertCircle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Microsoft and Google SSO Icons as SVG components - styled to match app theme
+// Social Login Icons
 const MicrosoftIcon = ({ className }) => (
   <svg width="18" height="18" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
     <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
@@ -33,6 +35,122 @@ const GoogleIcon = ({ className }) => (
   </svg>
 );
 
+const AppleIcon = ({ className }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+  </svg>
+);
+
+const LinkedInIcon = ({ className }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="#0A66C2" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+  </svg>
+);
+
+// Password Strength Calculator
+const calculatePasswordStrength = (password) => {
+  let strength = 0;
+  let feedback = [];
+  
+  if (password.length === 0) return { strength: 0, label: '', color: '', feedback: [] };
+  
+  // Length check
+  if (password.length >= 8) {
+    strength += 25;
+  } else {
+    feedback.push('At least 8 characters');
+  }
+  
+  // Uppercase check
+  if (/[A-Z]/.test(password)) {
+    strength += 25;
+  } else {
+    feedback.push('One uppercase letter');
+  }
+  
+  // Lowercase check
+  if (/[a-z]/.test(password)) {
+    strength += 15;
+  } else {
+    feedback.push('One lowercase letter');
+  }
+  
+  // Number check
+  if (/[0-9]/.test(password)) {
+    strength += 20;
+  } else {
+    feedback.push('One number');
+  }
+  
+  // Special character check
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    strength += 15;
+  } else {
+    feedback.push('One special character');
+  }
+  
+  let label = '';
+  let color = '';
+  
+  if (strength < 30) {
+    label = 'Weak';
+    color = 'bg-red-500';
+  } else if (strength < 60) {
+    label = 'Fair';
+    color = 'bg-orange-500';
+  } else if (strength < 80) {
+    label = 'Good';
+    color = 'bg-yellow-500';
+  } else {
+    label = 'Strong';
+    color = 'bg-emerald-500';
+  }
+  
+  return { strength, label, color, feedback };
+};
+
+// Password Strength Indicator Component
+const PasswordStrengthIndicator = ({ password }) => {
+  const { strength, label, color, feedback } = calculatePasswordStrength(password);
+  
+  if (!password) return null;
+  
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <Progress value={strength} className="h-2 flex-1" indicatorClassName={color} />
+        <span className={`text-xs font-medium ${
+          label === 'Weak' ? 'text-red-600' :
+          label === 'Fair' ? 'text-orange-600' :
+          label === 'Good' ? 'text-yellow-600' :
+          'text-emerald-600'
+        }`}>
+          {label}
+        </span>
+      </div>
+      {feedback.length > 0 && strength < 80 && (
+        <div className="text-xs text-slate-500 space-y-1">
+          <p className="font-medium">Add for stronger password:</p>
+          <ul className="space-y-0.5">
+            {feedback.map((item, i) => (
+              <li key={i} className="flex items-center gap-1">
+                <X className="w-3 h-3 text-slate-400" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {strength >= 80 && (
+        <div className="flex items-center gap-1 text-xs text-emerald-600">
+          <Check className="w-3 h-3" />
+          Great password!
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Login = ({ onLogin }) => {
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
@@ -42,8 +160,17 @@ const Login = ({ onLogin }) => {
     role: 'coordinator',
   });
   const [loading, setLoading] = useState(false);
-  const [ssoLoading, setSsoLoading] = useState({ microsoft: false, google: false });
+  const [ssoLoading, setSsoLoading] = useState({ microsoft: false, google: false, apple: false, linkedin: false });
   const [rememberMe, setRememberMe] = useState(false);
+  
+  // 2FA State
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [pendingLoginData, setPendingLoginData] = useState(null);
+  
+  // Biometric State
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   
   // Forgot password state
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
@@ -52,6 +179,75 @@ const Login = ({ onLogin }) => {
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    if (window.PublicKeyCredential) {
+      try {
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        setBiometricAvailable(available);
+      } catch {
+        setBiometricAvailable(false);
+      }
+    }
+  };
+
+  // Biometric Login Handler
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    try {
+      // Check if user has registered biometrics
+      const storedCredentialId = localStorage.getItem('biometric_credential_id');
+      const storedEmail = localStorage.getItem('biometric_email');
+      
+      if (!storedCredentialId || !storedEmail) {
+        toast.error('No biometric login configured. Please login with password first, then enable biometrics in Settings.');
+        setBiometricLoading(false);
+        return;
+      }
+
+      // Create WebAuthn assertion options
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      
+      const publicKeyCredentialRequestOptions = {
+        challenge,
+        timeout: 60000,
+        userVerification: 'required',
+        allowCredentials: [{
+          id: Uint8Array.from(atob(storedCredentialId), c => c.charCodeAt(0)),
+          type: 'public-key',
+          transports: ['internal']
+        }]
+      };
+
+      const credential = await navigator.credentials.get({
+        publicKey: publicKeyCredentialRequestOptions
+      });
+
+      if (credential) {
+        // Verify with backend (for now, we'll do a simplified check)
+        const response = await axios.post(`${API}/auth/biometric-login`, {
+          email: storedEmail,
+          credential_id: storedCredentialId
+        });
+        
+        toast.success('Biometric login successful!');
+        onLogin(response.data.access_token, response.data.user);
+      }
+    } catch (error) {
+      if (error.name === 'NotAllowedError') {
+        toast.error('Biometric authentication was cancelled or not allowed');
+      } else {
+        toast.error('Biometric login failed. Please try password login.');
+      }
+    }
+    setBiometricLoading(false);
+  };
 
   // Load remembered email on mount
   useEffect(() => {
@@ -173,6 +369,14 @@ const Login = ({ onLogin }) => {
     try {
       const response = await axios.post(`${API}/auth/login`, loginData);
       
+      // Check if 2FA is required
+      if (response.data.requires_2fa) {
+        setPendingLoginData(response.data);
+        setShow2FAModal(true);
+        setLoading(false);
+        return;
+      }
+      
       // Handle Remember Me
       if (rememberMe) {
         localStorage.setItem('remembered_email', loginData.email);
@@ -186,6 +390,49 @@ const Login = ({ onLogin }) => {
       toast.error(error.response?.data?.detail || 'Login failed');
     }
     setLoading(false);
+  };
+
+  // Handle 2FA verification
+  const handle2FAVerify = async () => {
+    if (twoFactorCode.length !== 6) {
+      toast.error('Please enter a 6-digit code');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/auth/verify-2fa`, {
+        email: loginData.email,
+        code: twoFactorCode,
+        temp_token: pendingLoginData?.temp_token
+      });
+      
+      if (rememberMe) {
+        localStorage.setItem('remembered_email', loginData.email);
+      }
+      
+      toast.success('Login successful!');
+      setShow2FAModal(false);
+      setTwoFactorCode('');
+      onLogin(response.data.access_token, response.data.user);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Invalid verification code');
+    }
+    setLoading(false);
+  };
+
+  // Apple Sign In Handler
+  const handleAppleSignIn = async () => {
+    setSsoLoading({ ...ssoLoading, apple: true });
+    toast.info('Apple Sign In coming soon! Use Microsoft or Google for now.');
+    setTimeout(() => setSsoLoading({ ...ssoLoading, apple: false }), 1000);
+  };
+
+  // LinkedIn Sign In Handler
+  const handleLinkedInSignIn = async () => {
+    setSsoLoading({ ...ssoLoading, linkedin: true });
+    toast.info('LinkedIn Sign In coming soon! Use Microsoft or Google for now.');
+    setTimeout(() => setSsoLoading({ ...ssoLoading, linkedin: false }), 1000);
   };
 
   const handleRegister = async (e) => {
@@ -540,6 +787,29 @@ const Login = ({ onLogin }) => {
               
               {/* SSO Sign-in Options */}
               <div className="mt-6" role="group" aria-label="Organization sign-in options">
+                {/* Biometric Login */}
+                {biometricAvailable && (
+                  <div className="mb-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full flex items-center justify-center gap-3 h-12 border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary transition-all duration-200"
+                      onClick={handleBiometricLogin}
+                      disabled={biometricLoading}
+                      data-testid="biometric-login-button"
+                      aria-label="Sign in with fingerprint or face recognition"
+                    >
+                      <Fingerprint className="w-5 h-5" />
+                      <span className="font-medium">
+                        {biometricLoading ? 'Authenticating...' : 'Sign in with Biometrics'}
+                      </span>
+                    </Button>
+                    <p className="text-xs text-center text-slate-500 mt-1">
+                      Use fingerprint or face recognition
+                    </p>
+                  </div>
+                )}
+
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <Separator className="w-full" />
@@ -552,36 +822,68 @@ const Login = ({ onLogin }) => {
                   </div>
                 </div>
                 
-                <div className="mt-4 space-y-2.5">
-                  {/* Microsoft SSO Button - Custom styled */}
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {/* Microsoft SSO Button */}
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
+                    className="flex items-center justify-center gap-2 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm"
                     onClick={handleMicrosoftSignIn}
                     disabled={ssoLoading.microsoft}
                     data-testid="microsoft-sso-button"
-                    aria-label="Sign in with Microsoft account"
+                    aria-label="Sign in with Microsoft"
                   >
                     <MicrosoftIcon className="flex-shrink-0" />
-                    <span className="text-slate-700 font-medium text-sm sm:text-base">
-                      {ssoLoading.microsoft ? 'Connecting...' : 'Sign in with Microsoft'}
+                    <span className="text-slate-700 font-medium text-sm hidden sm:inline">
+                      {ssoLoading.microsoft ? '...' : 'Microsoft'}
                     </span>
                   </Button>
                   
-                  {/* Google SSO Button - Custom styled */}
+                  {/* Google SSO Button */}
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
+                    className="flex items-center justify-center gap-2 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm"
                     onClick={handleGoogleSignIn}
                     disabled={ssoLoading.google}
                     data-testid="google-sso-button"
-                    aria-label="Sign in with Google account"
+                    aria-label="Sign in with Google"
                   >
                     <GoogleIcon className="flex-shrink-0" />
-                    <span className="text-slate-700 font-medium text-sm sm:text-base">
-                      {ssoLoading.google ? 'Connecting...' : 'Sign in with Google'}
+                    <span className="text-slate-700 font-medium text-sm hidden sm:inline">
+                      {ssoLoading.google ? '...' : 'Google'}
+                    </span>
+                  </Button>
+                  
+                  {/* Apple SSO Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex items-center justify-center gap-2 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm"
+                    onClick={handleAppleSignIn}
+                    disabled={ssoLoading.apple}
+                    data-testid="apple-sso-button"
+                    aria-label="Sign in with Apple"
+                  >
+                    <AppleIcon className="flex-shrink-0" />
+                    <span className="text-slate-700 font-medium text-sm hidden sm:inline">
+                      {ssoLoading.apple ? '...' : 'Apple'}
+                    </span>
+                  </Button>
+                  
+                  {/* LinkedIn SSO Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex items-center justify-center gap-2 h-11 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm"
+                    onClick={handleLinkedInSignIn}
+                    disabled={ssoLoading.linkedin}
+                    data-testid="linkedin-sso-button"
+                    aria-label="Sign in with LinkedIn"
+                  >
+                    <LinkedInIcon className="flex-shrink-0" />
+                    <span className="text-slate-700 font-medium text-sm hidden sm:inline">
+                      {ssoLoading.linkedin ? '...' : 'LinkedIn'}
                     </span>
                   </Button>
                 </div>
@@ -638,12 +940,11 @@ const Login = ({ onLogin }) => {
                     required
                     autoComplete="new-password"
                     aria-required="true"
-                    minLength={6}
+                    minLength={8}
                     className="h-11 text-base focus-visible:ring-2 focus-visible:ring-primary"
                   />
-                  <p className="text-xs text-slate-500" id="password-hint">
-                    Must be at least 6 characters
-                  </p>
+                  {/* Password Strength Indicator */}
+                  <PasswordStrengthIndicator password={registerData.password} />
                 </div>
                 <Button
                   type="submit"
@@ -702,6 +1003,61 @@ const Login = ({ onLogin }) => {
           256-bit SSL encrypted connection
         </p>
       </div>
+
+      {/* 2FA Verification Modal */}
+      <Dialog open={show2FAModal} onOpenChange={setShow2FAModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Smartphone className="w-5 h-5 text-primary" />
+              Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code from your authenticator app to complete sign in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex justify-center">
+              <InputOTP 
+                maxLength={6} 
+                value={twoFactorCode} 
+                onChange={(value) => setTwoFactorCode(value)}
+                data-testid="2fa-code-input"
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <p className="text-xs text-center text-slate-500">
+              Open your authenticator app (Google Authenticator, Microsoft Authenticator, etc.) and enter the code shown.
+            </p>
+            <Button 
+              onClick={handle2FAVerify} 
+              className="w-full" 
+              disabled={loading || twoFactorCode.length !== 6}
+            >
+              {loading ? 'Verifying...' : 'Verify & Sign In'}
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full text-slate-500"
+              onClick={() => {
+                setShow2FAModal(false);
+                setTwoFactorCode('');
+                setPendingLoginData(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

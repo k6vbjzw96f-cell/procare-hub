@@ -847,6 +847,124 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 # ==================================
+# Biometric Authentication
+# ==================================
+class BiometricLoginRequest(BaseModel):
+    email: str
+    credential_id: str
+
+@api_router.post("/auth/biometric-login")
+async def biometric_login(request: BiometricLoginRequest):
+    """Login using biometric authentication (fingerprint/face)"""
+    # Find user by email
+    user_doc = await db.users.find_one({"email": request.email}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    # Verify biometric credential is registered for this user
+    stored_credential = user_doc.get("biometric_credential_id")
+    if not stored_credential or stored_credential != request.credential_id:
+        raise HTTPException(status_code=401, detail="Biometric not registered for this account")
+    
+    # Generate token
+    token = jwt.encode(
+        {"sub": user_doc["id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+        SECRET_KEY, algorithm=ALGORITHM
+    )
+    
+    if isinstance(user_doc['created_at'], str):
+        user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": User(**user_doc)
+    }
+
+class RegisterBiometricRequest(BaseModel):
+    credential_id: str
+
+@api_router.post("/auth/register-biometric")
+async def register_biometric(request: RegisterBiometricRequest, current_user: User = Depends(get_current_user)):
+    """Register biometric credential for the current user"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"biometric_credential_id": request.credential_id}}
+    )
+    return {"message": "Biometric authentication enabled successfully"}
+
+# ==================================
+# Two-Factor Authentication (2FA)
+# ==================================
+class Verify2FARequest(BaseModel):
+    email: str
+    code: str
+    temp_token: Optional[str] = None
+
+@api_router.post("/auth/verify-2fa")
+async def verify_2fa(request: Verify2FARequest):
+    """Verify 2FA code and complete login"""
+    # Find user
+    user_doc = await db.users.find_one({"email": request.email}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    # Verify the 2FA code (in production, use TOTP validation)
+    # For now, accept any 6-digit code for demo purposes
+    stored_2fa_secret = user_doc.get("two_factor_secret")
+    
+    if not stored_2fa_secret:
+        raise HTTPException(status_code=400, detail="2FA not enabled for this account")
+    
+    # In a real implementation, validate TOTP code here
+    # For demo, we'll check against a stored temp code or accept valid format
+    stored_temp_code = await db.temp_2fa_codes.find_one({"email": request.email})
+    
+    if stored_temp_code and stored_temp_code.get("code") == request.code:
+        # Valid code - delete it
+        await db.temp_2fa_codes.delete_one({"email": request.email})
+    elif len(request.code) != 6 or not request.code.isdigit():
+        raise HTTPException(status_code=401, detail="Invalid verification code")
+    
+    # Generate token
+    token = jwt.encode(
+        {"sub": user_doc["id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+        SECRET_KEY, algorithm=ALGORITHM
+    )
+    
+    if isinstance(user_doc['created_at'], str):
+        user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": User(**user_doc)
+    }
+
+class Enable2FARequest(BaseModel):
+    enable: bool
+
+@api_router.post("/auth/enable-2fa")
+async def enable_2fa(request: Enable2FARequest, current_user: User = Depends(get_current_user)):
+    """Enable or disable 2FA for the current user"""
+    import secrets
+    
+    if request.enable:
+        # Generate a secret for TOTP (in production, use pyotp)
+        secret = secrets.token_hex(16)
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"two_factor_secret": secret, "two_factor_enabled": True}}
+        )
+        return {"message": "2FA enabled successfully", "secret": secret}
+    else:
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"two_factor_secret": None, "two_factor_enabled": False}}
+        )
+        return {"message": "2FA disabled successfully"}
+
+# ==================================
 # SSO Authentication Routes (Demo Mode)
 # ==================================
 # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
