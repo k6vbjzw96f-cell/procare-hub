@@ -74,6 +74,17 @@ function App() {
               )
             }
           />
+          {/* SSO Auth Callback Route - handles OAuth redirects */}
+          <Route
+            path="/auth/callback"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Login onLogin={handleLogin} />
+              )
+            }
+          />
           <Route
             path="/*"
             element={

@@ -665,10 +665,13 @@ def create_access_token(data: dict) -> str:
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        user_id_or_email: str = payload.get("sub")
+        if user_id_or_email is None:
             raise HTTPException(status_code=401, detail="Invalid authentication")
-        user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+        # Support both id and email for backwards compatibility (SSO uses id, regular auth uses email)
+        user_doc = await db.users.find_one({"id": user_id_or_email}, {"_id": 0})
+        if user_doc is None:
+            user_doc = await db.users.find_one({"email": user_id_or_email}, {"_id": 0})
         if user_doc is None:
             raise HTTPException(status_code=401, detail="User not found")
         if isinstance(user_doc['created_at'], str):
@@ -842,6 +845,333 @@ async def reset_password(request: PasswordResetVerify):
 @api_router.get("/auth/me", response_model=User)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+# ==================================
+# SSO Authentication Routes (Demo Mode)
+# ==================================
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+# These SSO endpoints are in DEMO MODE. To activate:
+# - Microsoft: Add MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_TENANT_ID to .env
+# - Google: Add GOOGLE_SSO_CLIENT_ID, GOOGLE_SSO_CLIENT_SECRET to .env
+
+MICROSOFT_CLIENT_ID = os.environ.get("MICROSOFT_CLIENT_ID")
+MICROSOFT_CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET")
+MICROSOFT_TENANT_ID = os.environ.get("MICROSOFT_TENANT_ID", "common")
+
+GOOGLE_SSO_CLIENT_ID = os.environ.get("GOOGLE_SSO_CLIENT_ID")
+GOOGLE_SSO_CLIENT_SECRET = os.environ.get("GOOGLE_SSO_CLIENT_SECRET")
+
+class SSOAuthURL(BaseModel):
+    auth_url: str
+    state: str
+    demo_mode: bool = False
+
+class SSOCallback(BaseModel):
+    code: str
+    state: str
+    redirect_uri: str
+
+@api_router.get("/auth/sso/microsoft/url")
+async def get_microsoft_auth_url(redirect_uri: str = Query(...)):
+    """Get Microsoft OAuth URL for organization sign-in"""
+    state = str(uuid.uuid4())
+    
+    # Store state for verification
+    await db.sso_states.insert_one({
+        "state": state,
+        "provider": "microsoft",
+        "redirect_uri": redirect_uri,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    })
+    
+    # Check if in demo mode (no credentials configured)
+    demo_mode = not (MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET)
+    
+    if demo_mode:
+        # Demo mode - return a demo URL that will be handled by the frontend
+        auth_url = f"{redirect_uri}?code=DEMO_MICROSOFT_CODE&state={state}"
+        return {"auth_url": auth_url, "state": state, "demo_mode": True}
+    
+    # Real Microsoft OAuth URL
+    scope = "openid profile email User.Read"
+    auth_url = (
+        f"https://login.microsoftonline.com/{MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize?"
+        f"client_id={MICROSOFT_CLIENT_ID}&"
+        f"response_type=code&"
+        f"redirect_uri={redirect_uri}&"
+        f"scope={scope}&"
+        f"state={state}&"
+        f"response_mode=query"
+    )
+    return {"auth_url": auth_url, "state": state, "demo_mode": False}
+
+@api_router.post("/auth/sso/microsoft/callback")
+async def microsoft_sso_callback(callback_data: SSOCallback):
+    """Handle Microsoft OAuth callback"""
+    # Verify state
+    state_record = await db.sso_states.find_one({"state": callback_data.state, "provider": "microsoft"})
+    if not state_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired state")
+    
+    # Delete used state
+    await db.sso_states.delete_one({"state": callback_data.state})
+    
+    # Check if demo mode
+    demo_mode = not (MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET)
+    
+    if demo_mode or callback_data.code.startswith("DEMO_"):
+        # Demo mode - create/get demo SSO user
+        demo_email = "demo.user@organization.onmicrosoft.com"
+        demo_name = "Demo Microsoft User"
+        
+        # Check if demo user exists
+        existing_user = await db.users.find_one({"email": demo_email}, {"_id": 0})
+        
+        if not existing_user:
+            # Create demo user
+            user = User(
+                email=demo_email,
+                full_name=demo_name,
+                role="coordinator",
+                phone=None
+            )
+            doc = user.model_dump()
+            doc['password_hash'] = pwd_context.hash("sso_user_no_password")
+            doc['sso_provider'] = "microsoft"
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.users.insert_one(doc)
+            existing_user = doc
+        
+        # Generate token
+        token = jwt.encode(
+            {"sub": existing_user["id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+            SECRET_KEY, algorithm=ALGORITHM
+        )
+        
+        user_data = User(**{k: existing_user[k] for k in ["id", "email", "full_name", "role", "phone", "created_at"] if k in existing_user})
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": user_data,
+            "demo_mode": True,
+            "message": "Signed in with Microsoft (Demo Mode). Configure MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET for real authentication."
+        }
+    
+    # Real Microsoft OAuth token exchange
+    token_url = f"https://login.microsoftonline.com/{MICROSOFT_TENANT_ID}/oauth2/v2.0/token"
+    token_data = {
+        "client_id": MICROSOFT_CLIENT_ID,
+        "client_secret": MICROSOFT_CLIENT_SECRET,
+        "code": callback_data.code,
+        "redirect_uri": callback_data.redirect_uri,
+        "grant_type": "authorization_code",
+        "scope": "openid profile email User.Read"
+    }
+    
+    token_response = requests.post(token_url, data=token_data)
+    if token_response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+    
+    tokens = token_response.json()
+    access_token = tokens.get("access_token")
+    
+    # Get user info from Microsoft Graph
+    user_info_response = requests.get(
+        "https://graph.microsoft.com/v1.0/me",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
+    
+    if user_info_response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to get user info")
+    
+    ms_user = user_info_response.json()
+    email = ms_user.get("mail") or ms_user.get("userPrincipalName")
+    full_name = ms_user.get("displayName", email.split("@")[0])
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not existing_user:
+        # Create new user from Microsoft SSO
+        user = User(
+            email=email,
+            full_name=full_name,
+            role="support_worker",  # Default role for SSO users
+            phone=ms_user.get("mobilePhone")
+        )
+        doc = user.model_dump()
+        doc['password_hash'] = pwd_context.hash(str(uuid.uuid4()))  # Random password for SSO users
+        doc['sso_provider'] = "microsoft"
+        doc['microsoft_id'] = ms_user.get("id")
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.users.insert_one(doc)
+        existing_user = doc
+    
+    # Generate JWT token
+    token = jwt.encode(
+        {"sub": existing_user["id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+        SECRET_KEY, algorithm=ALGORITHM
+    )
+    
+    user_data = User(**{k: existing_user[k] for k in ["id", "email", "full_name", "role", "phone", "created_at"] if k in existing_user})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": user_data,
+        "demo_mode": False
+    }
+
+@api_router.get("/auth/sso/google/url")
+async def get_google_auth_url(redirect_uri: str = Query(...)):
+    """Get Google OAuth URL for organization sign-in"""
+    state = str(uuid.uuid4())
+    
+    # Store state for verification
+    await db.sso_states.insert_one({
+        "state": state,
+        "provider": "google",
+        "redirect_uri": redirect_uri,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    })
+    
+    # Check if in demo mode (no credentials configured)
+    demo_mode = not (GOOGLE_SSO_CLIENT_ID and GOOGLE_SSO_CLIENT_SECRET)
+    
+    if demo_mode:
+        # Demo mode - return a demo URL that will be handled by the frontend
+        auth_url = f"{redirect_uri}?code=DEMO_GOOGLE_CODE&state={state}"
+        return {"auth_url": auth_url, "state": state, "demo_mode": True}
+    
+    # Real Google OAuth URL
+    scope = "openid email profile"
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_SSO_CLIENT_ID}&"
+        f"response_type=code&"
+        f"redirect_uri={redirect_uri}&"
+        f"scope={scope}&"
+        f"state={state}&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
+    return {"auth_url": auth_url, "state": state, "demo_mode": False}
+
+@api_router.post("/auth/sso/google/callback")
+async def google_sso_callback(callback_data: SSOCallback):
+    """Handle Google OAuth callback"""
+    # Verify state
+    state_record = await db.sso_states.find_one({"state": callback_data.state, "provider": "google"})
+    if not state_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired state")
+    
+    # Delete used state
+    await db.sso_states.delete_one({"state": callback_data.state})
+    
+    # Check if demo mode
+    demo_mode = not (GOOGLE_SSO_CLIENT_ID and GOOGLE_SSO_CLIENT_SECRET)
+    
+    if demo_mode or callback_data.code.startswith("DEMO_"):
+        # Demo mode - create/get demo SSO user
+        demo_email = "demo.user@workspace.google.com"
+        demo_name = "Demo Google User"
+        
+        # Check if demo user exists
+        existing_user = await db.users.find_one({"email": demo_email}, {"_id": 0})
+        
+        if not existing_user:
+            # Create demo user
+            user = User(
+                email=demo_email,
+                full_name=demo_name,
+                role="coordinator",
+                phone=None
+            )
+            doc = user.model_dump()
+            doc['password_hash'] = pwd_context.hash("sso_user_no_password")
+            doc['sso_provider'] = "google"
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.users.insert_one(doc)
+            existing_user = doc
+        
+        # Generate token
+        token = jwt.encode(
+            {"sub": existing_user["id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+            SECRET_KEY, algorithm=ALGORITHM
+        )
+        
+        user_data = User(**{k: existing_user[k] for k in ["id", "email", "full_name", "role", "phone", "created_at"] if k in existing_user})
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": user_data,
+            "demo_mode": True,
+            "message": "Signed in with Google (Demo Mode). Configure GOOGLE_SSO_CLIENT_ID and GOOGLE_SSO_CLIENT_SECRET for real authentication."
+        }
+    
+    # Real Google OAuth token exchange
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "client_id": GOOGLE_SSO_CLIENT_ID,
+        "client_secret": GOOGLE_SSO_CLIENT_SECRET,
+        "code": callback_data.code,
+        "redirect_uri": callback_data.redirect_uri,
+        "grant_type": "authorization_code"
+    }
+    
+    token_response = requests.post(token_url, data=token_data)
+    if token_response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+    
+    tokens = token_response.json()
+    access_token = tokens.get("access_token")
+    
+    # Get user info from Google
+    user_info_response = requests.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
+    
+    if user_info_response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to get user info")
+    
+    google_user = user_info_response.json()
+    email = google_user.get("email")
+    full_name = google_user.get("name", email.split("@")[0])
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not existing_user:
+        # Create new user from Google SSO
+        user = User(
+            email=email,
+            full_name=full_name,
+            role="support_worker",  # Default role for SSO users
+            phone=None
+        )
+        doc = user.model_dump()
+        doc['password_hash'] = pwd_context.hash(str(uuid.uuid4()))  # Random password for SSO users
+        doc['sso_provider'] = "google"
+        doc['google_id'] = google_user.get("id")
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.users.insert_one(doc)
+        existing_user = doc
+    
+    # Generate JWT token
+    token = jwt.encode(
+        {"sub": existing_user["id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+        SECRET_KEY, algorithm=ALGORITHM
+    )
+    
+    user_data = User(**{k: existing_user[k] for k in ["id", "email", "full_name", "role", "phone", "created_at"] if k in existing_user})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": user_data,
+        "demo_mode": False
+    }
 
 # File Upload Routes
 @api_router.post("/upload")

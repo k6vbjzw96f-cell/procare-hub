@@ -1,16 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { ArrowLeft, Mail, KeyRound, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Mail, KeyRound, CheckCircle2, Building2 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Microsoft and Google SSO Icons as SVG components
+const MicrosoftIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+    <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+    <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+    <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+  </svg>
+);
+
+const GoogleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </svg>
+);
 
 const Login = ({ onLogin }) => {
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -21,6 +41,7 @@ const Login = ({ onLogin }) => {
     role: 'coordinator',
   });
   const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState({ microsoft: false, google: false });
   
   // Forgot password state
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
@@ -30,6 +51,110 @@ const Login = ({ onLogin }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+  // Handle SSO callback on component mount
+  useEffect(() => {
+    const handleSSOCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      
+      if (code && state) {
+        // Determine provider from stored state or URL pattern
+        const storedMicrosoftState = sessionStorage.getItem('microsoft_sso_state');
+        const storedGoogleState = sessionStorage.getItem('google_sso_state');
+        
+        let provider = null;
+        if (state === storedMicrosoftState) {
+          provider = 'microsoft';
+          sessionStorage.removeItem('microsoft_sso_state');
+        } else if (state === storedGoogleState) {
+          provider = 'google';
+          sessionStorage.removeItem('google_sso_state');
+        }
+        
+        if (provider) {
+          try {
+            // Use window.location.origin for redirect URI - never hardcode
+            const redirectUri = window.location.origin + '/auth/callback';
+            
+            const response = await axios.post(`${API}/auth/sso/${provider}/callback`, {
+              code,
+              state,
+              redirect_uri: redirectUri
+            });
+            
+            if (response.data.demo_mode) {
+              toast.info(response.data.message || `Signed in with ${provider} (Demo Mode)`);
+            } else {
+              toast.success(`Successfully signed in with ${provider === 'microsoft' ? 'Microsoft' : 'Google'}!`);
+            }
+            
+            // Clear URL params
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            onLogin(response.data.access_token, response.data.user);
+          } catch (error) {
+            toast.error(error.response?.data?.detail || `${provider} sign-in failed`);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      }
+    };
+    
+    handleSSOCallback();
+  }, [onLogin]);
+
+  // SSO Sign-in handlers
+  const handleMicrosoftSignIn = async () => {
+    setSsoLoading({ ...ssoLoading, microsoft: true });
+    try {
+      // Use window.location.origin for redirect URI - never hardcode
+      const redirectUri = window.location.origin + '/auth/callback';
+      
+      const response = await axios.get(`${API}/auth/sso/microsoft/url`, {
+        params: { redirect_uri: redirectUri }
+      });
+      
+      // Store state for callback verification
+      sessionStorage.setItem('microsoft_sso_state', response.data.state);
+      
+      if (response.data.demo_mode) {
+        toast.info('Microsoft SSO is in demo mode. Proceeding with demo authentication.');
+      }
+      
+      // Redirect to Microsoft auth URL
+      window.location.href = response.data.auth_url;
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to initiate Microsoft sign-in');
+      setSsoLoading({ ...ssoLoading, microsoft: false });
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setSsoLoading({ ...ssoLoading, google: true });
+    try {
+      // Use window.location.origin for redirect URI - never hardcode
+      const redirectUri = window.location.origin + '/auth/callback';
+      
+      const response = await axios.get(`${API}/auth/sso/google/url`, {
+        params: { redirect_uri: redirectUri }
+      });
+      
+      // Store state for callback verification
+      sessionStorage.setItem('google_sso_state', response.data.state);
+      
+      if (response.data.demo_mode) {
+        toast.info('Google SSO is in demo mode. Proceeding with demo authentication.');
+      }
+      
+      // Redirect to Google auth URL
+      window.location.href = response.data.auth_url;
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to initiate Google sign-in');
+      setSsoLoading({ ...ssoLoading, google: false });
+    }
+  };
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -327,6 +452,47 @@ const Login = ({ onLogin }) => {
                   {loading ? 'Logging in...' : 'Login'}
                 </Button>
               </form>
+              
+              {/* SSO Sign-in Options */}
+              <div className="mt-6">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-slate-500 flex items-center gap-1">
+                      <Building2 className="w-3 h-3" />
+                      Sign in with your organization
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="mt-4 space-y-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-300 hover:bg-slate-50"
+                    onClick={handleMicrosoftSignIn}
+                    disabled={ssoLoading.microsoft}
+                    data-testid="microsoft-sso-button"
+                  >
+                    <MicrosoftIcon />
+                    <span>{ssoLoading.microsoft ? 'Connecting...' : 'Sign in with Microsoft'}</span>
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full flex items-center justify-center gap-3 h-11 border-slate-300 hover:bg-slate-50"
+                    onClick={handleGoogleSignIn}
+                    disabled={ssoLoading.google}
+                    data-testid="google-sso-button"
+                  >
+                    <GoogleIcon />
+                    <span>{ssoLoading.google ? 'Connecting...' : 'Sign in with Google'}</span>
+                  </Button>
+                </div>
+              </div>
             </TabsContent>
             
             <TabsContent value="register">
