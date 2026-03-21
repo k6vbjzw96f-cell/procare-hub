@@ -3,6 +3,11 @@
 ## Overview
 ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provider management platform built to help disability service providers manage their operations efficiently.
 
+## Live Integrations (Real Credentials Configured)
+- ✅ **Microsoft SSO** - Organization sign-in
+- ✅ **Google SSO** - Organization sign-in  
+- ✅ **Xero Accounting** - Invoice sync
+
 ## Core Features
 
 ### Implemented (Complete)

@@ -1872,8 +1872,8 @@ async def end_break(staff_id: str, current_user: User = Depends(get_current_user
     end_time = now.strftime("%H:%M")
     
     # Calculate duration
-    start = dt.strptime(active_break['start_time'], "%H:%M")
-    end = dt.strptime(end_time, "%H:%M")
+    start = datetime.strptime(active_break['start_time'], "%H:%M")
+    end = datetime.strptime(end_time, "%H:%M")
     duration_minutes = int((end - start).total_seconds() / 60)
     
     await db.staff_breaks.update_one(
