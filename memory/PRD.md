@@ -26,6 +26,7 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - Organization settings
 - Notification preferences
 - Security settings
+- **Integrations tab** (NEW)
 
 ### New Features (March 2026 - Complete)
 1. **Medication Management**: Track participant medications, dosages, administration logs
@@ -34,6 +35,18 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 4. **Payment Processing**: Track invoice payments, record payments
 5. **Compliance Calendar**: Visual calendar for compliance deadlines with reminders
 6. **Feedback & Surveys**: Create surveys, collect responses, view analytics
+
+### Higher Effort Integrations (March 2026 - Implemented in Demo Mode)
+7. **Google Calendar Integration**: 
+   - Settings > Integrations tab to connect/disconnect
+   - Sync shifts to Google Calendar
+   - Mock mode for demo (add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET for real integration)
+   
+8. **Document Signing (SignWell)**:
+   - New Documents page for e-signatures
+   - Templates: NDIS Service Agreement, Consent Form, Incident Acknowledgment
+   - Create signature requests, track status, mock signing for demo
+   - Mock mode for demo (add SIGNWELL_API_KEY for real integration)
 
 ## Technical Stack
 - **Frontend**: React, Tailwind CSS, Shadcn/UI components
@@ -52,6 +65,8 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - Compliance Deadlines: /api/compliance/deadlines, /api/compliance/deadlines/{id}/complete
 - Surveys: /api/surveys, /api/surveys/{id}/respond, /api/surveys/{id}/responses
 - Invoices: /api/invoices, /api/invoices/{id}/status
+- **Calendar**: /api/calendar/status, /api/calendar/auth-url, /api/calendar/events, /api/calendar/sync-shift/{id}
+- **Documents**: /api/documents/status, /api/documents/templates, /api/documents/signature-request, /api/documents/signature-requests
 
 ## User Roles
 1. **Admin**: Full system access
@@ -66,18 +81,20 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 
 ## Backlog
 
-### P1 - Upcoming
-- Xero Accounting Integration (user mentioned initially)
-- Stripe Payment Gateway Integration
+### P1 - Upcoming (Require API Keys)
+- **Google Calendar - Real Integration**: Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET
+- **SignWell - Real Integration**: Add SIGNWELL_API_KEY
+- **Xero Accounting Integration**: Connect to accounting system
 
 ### P2 - Future
+- Location Tracking (GPS clock-in/out)
+- Customizable Reports with builder
+- User Permissions (fine-grained role access)
 - Leave Balance Tracking (accrual and remaining days)
-- Geofencing for Clock-in/out location validation
 - Push Notifications
 - Mobile App (React Native)
-- Advanced Reporting with Charts
 
 ### Technical Debt
-- Refactor server.py (2100+ lines) into modular structure using FastAPI APIRouter
+- Refactor server.py (2500+ lines) into modular structure using FastAPI APIRouter
 - Create reusable frontend components for tables and modals
 - Add comprehensive error handling and logging

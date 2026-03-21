@@ -7,9 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Settings as SettingsIcon, User, Building, Bell, Lock, Upload } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Settings as SettingsIcon, User, Building, Bell, Lock, Upload, Calendar, Link2, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -21,6 +23,8 @@ const getAuthHeader = () => ({
 const Settings = () => {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
   const [loading, setLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [calendarStatus, setCalendarStatus] = useState({ connected: false, mock_mode: true });
   
   const [profileData, setProfileData] = useState({
     full_name: user.full_name || '',
@@ -53,7 +57,13 @@ const Settings = () => {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+    fetchCalendarStatus();
+    
+    // Check for calendar connection success
+    if (searchParams.get('calendar') === 'connected') {
+      toast.success('Google Calendar connected successfully!');
+    }
+  }, [searchParams]);
 
   const fetchSettings = async () => {
     try {
@@ -65,6 +75,34 @@ const Settings = () => {
       setNotificationPrefs(notifsRes.data);
     } catch (error) {
       // Silent fail
+    }
+  };
+
+  const fetchCalendarStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/calendar/status`, getAuthHeader());
+      setCalendarStatus(response.data);
+    } catch (error) {
+      // Silent fail
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    try {
+      const response = await axios.get(`${API}/calendar/auth-url`, getAuthHeader());
+      window.location.href = response.data.authorization_url;
+    } catch (error) {
+      toast.error('Failed to initiate calendar connection');
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    try {
+      await axios.delete(`${API}/calendar/disconnect`, getAuthHeader());
+      setCalendarStatus({ ...calendarStatus, connected: false, google_email: null });
+      toast.success('Calendar disconnected');
+    } catch (error) {
+      toast.error('Failed to disconnect calendar');
     }
   };
 
@@ -168,7 +206,7 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile" className="gap-2">
             <User className="w-4 h-4" />
             Profile
@@ -176,6 +214,10 @@ const Settings = () => {
           <TabsTrigger value="organization" className="gap-2">
             <Building className="w-4 h-4" />
             Organization
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="gap-2">
+            <Link2 className="w-4 h-4" />
+            Integrations
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="w-4 h-4" />
@@ -344,6 +386,119 @@ const Settings = () => {
                   </div>
                 )}
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-6">
+          {/* Google Calendar Integration */}
+          <Card className="border-slate-100 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      Google Calendar
+                      {calendarStatus.mock_mode && (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Demo Mode</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>Sync your shifts with Google Calendar</CardDescription>
+                  </div>
+                </div>
+                {calendarStatus.connected ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-0">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Connected
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-slate-500">Not Connected</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {calendarStatus.connected ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">Connected Account</p>
+                      <p className="text-sm text-slate-500">{calendarStatus.google_email || 'demo.user@gmail.com'}</p>
+                    </div>
+                    <Button variant="outline" onClick={handleDisconnectCalendar}>
+                      Disconnect
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-medium">Auto-sync Shifts</Label>
+                      <p className="text-sm text-slate-500">Automatically sync new shifts to your calendar</p>
+                    </div>
+                    <Switch
+                      checked={calendarStatus.sync_enabled}
+                      onCheckedChange={() => {}}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {calendarStatus.mock_mode && (
+                    <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-800">
+                        <p className="font-medium">Demo Mode</p>
+                        <p>Google Calendar API credentials not configured. Click below to simulate connection.</p>
+                        <p className="mt-1 text-xs">To enable real integration, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your environment.</p>
+                      </div>
+                    </div>
+                  )}
+                  <Button onClick={handleConnectCalendar}>
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {calendarStatus.mock_mode ? 'Simulate Connection' : 'Connect Google Calendar'}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Document Signing Integration */}
+          <Card className="border-slate-100 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-purple-50 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    SignWell E-Signatures
+                    <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Demo Mode</Badge>
+                  </CardTitle>
+                  <CardDescription>Electronic document signing for service agreements</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg">
+                  <div className="text-sm">
+                    <p className="font-medium">E-Signature Integration</p>
+                    <p className="text-slate-500 mt-1">
+                      Send service agreements and consent forms for electronic signature. 
+                      Go to <a href="/documents" className="text-primary hover:underline">Documents</a> to create signature requests.
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" asChild>
+                  <a href="/documents">
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Go to Document Signing
+                  </a>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

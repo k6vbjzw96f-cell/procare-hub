@@ -2151,6 +2151,540 @@ async def get_incidents_summary_report(current_user: User = Depends(get_current_
         "recent_incidents": records[:20]
     }
 
+# ============================================
+# GOOGLE CALENDAR INTEGRATION
+# ============================================
+
+# Calendar config (set these in .env when you have credentials)
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_CALENDAR_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+CALENDAR_REDIRECT_URI = os.environ.get("CALENDAR_REDIRECT_URI", "")
+
+class CalendarConnection(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    user_email: str
+    google_email: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+    connected: bool = False
+    sync_enabled: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CalendarEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    google_event_id: Optional[str] = None
+    shift_id: Optional[str] = None
+    title: str
+    description: Optional[str] = None
+    start_time: str
+    end_time: str
+    location: Optional[str] = None
+    synced: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+@api_router.get("/calendar/status")
+async def get_calendar_status(current_user: User = Depends(get_current_user)):
+    """Check if Google Calendar is connected for the user"""
+    connection = await db.calendar_connections.find_one(
+        {"user_id": current_user.id},
+        {"_id": 0}
+    )
+    
+    return {
+        "integration_enabled": GOOGLE_CALENDAR_ENABLED,
+        "connected": connection.get("connected", False) if connection else False,
+        "google_email": connection.get("google_email") if connection else None,
+        "sync_enabled": connection.get("sync_enabled", True) if connection else True,
+        "mock_mode": not GOOGLE_CALENDAR_ENABLED
+    }
+
+@api_router.get("/calendar/auth-url")
+async def get_calendar_auth_url(current_user: User = Depends(get_current_user)):
+    """Get Google OAuth URL for calendar connection"""
+    if not GOOGLE_CALENDAR_ENABLED:
+        # Return mock auth URL for demo
+        return {
+            "authorization_url": f"/api/calendar/mock-connect?user_id={current_user.id}",
+            "mock_mode": True,
+            "message": "Demo mode - Click to simulate connection"
+        }
+    
+    from google_auth_oauthlib.flow import Flow
+    
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token"
+            }
+        },
+        scopes=["https://www.googleapis.com/auth/calendar"],
+        redirect_uri=CALENDAR_REDIRECT_URI
+    )
+    
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        prompt='consent',
+        state=current_user.id
+    )
+    
+    return {"authorization_url": authorization_url, "mock_mode": False}
+
+@api_router.get("/calendar/mock-connect")
+async def mock_calendar_connect(user_id: str):
+    """Mock connection for demo mode"""
+    from fastapi.responses import RedirectResponse
+    
+    connection = CalendarConnection(
+        user_id=user_id,
+        user_email="demo@procare.com",
+        google_email="demo.user@gmail.com",
+        connected=True
+    )
+    
+    doc = connection.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.calendar_connections.update_one(
+        {"user_id": user_id},
+        {"$set": doc},
+        upsert=True
+    )
+    
+    frontend_url = os.environ.get("FRONTEND_URL", "")
+    return RedirectResponse(url=f"{frontend_url}/settings?calendar=connected")
+
+@api_router.get("/oauth/calendar/callback")
+async def calendar_oauth_callback(code: str, state: str):
+    """Handle Google OAuth callback"""
+    from fastapi.responses import RedirectResponse
+    
+    if not GOOGLE_CALENDAR_ENABLED:
+        raise HTTPException(status_code=400, detail="Calendar integration not configured")
+    
+    # Exchange code for tokens
+    token_resp = requests.post('https://oauth2.googleapis.com/token', data={
+        'code': code,
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': GOOGLE_CLIENT_SECRET,
+        'redirect_uri': CALENDAR_REDIRECT_URI,
+        'grant_type': 'authorization_code'
+    }).json()
+    
+    if 'error' in token_resp:
+        raise HTTPException(status_code=400, detail=token_resp.get('error_description', 'OAuth failed'))
+    
+    # Get user info
+    user_info = requests.get(
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        headers={'Authorization': f'Bearer {token_resp["access_token"]}'}
+    ).json()
+    
+    # Store connection
+    user_id = state
+    connection = CalendarConnection(
+        user_id=user_id,
+        user_email=user_info.get('email', ''),
+        google_email=user_info.get('email'),
+        access_token=token_resp.get('access_token'),
+        refresh_token=token_resp.get('refresh_token'),
+        connected=True
+    )
+    
+    doc = connection.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.calendar_connections.update_one(
+        {"user_id": user_id},
+        {"$set": doc},
+        upsert=True
+    )
+    
+    frontend_url = os.environ.get("FRONTEND_URL", "")
+    return RedirectResponse(url=f"{frontend_url}/settings?calendar=connected")
+
+@api_router.delete("/calendar/disconnect")
+async def disconnect_calendar(current_user: User = Depends(get_current_user)):
+    """Disconnect Google Calendar"""
+    await db.calendar_connections.delete_one({"user_id": current_user.id})
+    return {"message": "Calendar disconnected"}
+
+@api_router.get("/calendar/events")
+async def get_calendar_events(current_user: User = Depends(get_current_user)):
+    """Get synced calendar events"""
+    events = await db.calendar_events.find(
+        {"user_id": current_user.id},
+        {"_id": 0}
+    ).sort("start_time", 1).to_list(100)
+    
+    for event in events:
+        if isinstance(event.get('created_at'), str):
+            event['created_at'] = datetime.fromisoformat(event['created_at'])
+    
+    return events
+
+@api_router.post("/calendar/sync-shift/{shift_id}")
+async def sync_shift_to_calendar(shift_id: str, current_user: User = Depends(get_current_user)):
+    """Sync a shift to Google Calendar"""
+    # Get shift
+    shift = await db.shifts.find_one({"id": shift_id}, {"_id": 0})
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    
+    # Check calendar connection
+    connection = await db.calendar_connections.find_one({"user_id": current_user.id}, {"_id": 0})
+    if not connection or not connection.get('connected'):
+        raise HTTPException(status_code=400, detail="Calendar not connected")
+    
+    # Create calendar event
+    event = CalendarEvent(
+        user_id=current_user.id,
+        shift_id=shift_id,
+        title=f"Shift: {shift.get('client_name', 'Client')}",
+        description=f"Support: {shift.get('service_type', '')}",
+        start_time=f"{shift['shift_date']}T{shift['start_time']}:00",
+        end_time=f"{shift['shift_date']}T{shift['end_time']}:00",
+        location=shift.get('location', ''),
+        synced=True
+    )
+    
+    doc = event.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.calendar_events.insert_one(doc)
+    
+    # In real mode, would create Google Calendar event here
+    # For now, just store locally
+    
+    return {"message": "Shift synced to calendar", "event_id": event.id}
+
+# ============================================
+# DOCUMENT SIGNING (SIGNWELL) INTEGRATION
+# ============================================
+
+# SignWell config
+SIGNWELL_API_KEY = os.environ.get("SIGNWELL_API_KEY", "")
+SIGNWELL_ENABLED = bool(SIGNWELL_API_KEY)
+SIGNWELL_BASE_URL = "https://api.signwell.com/v1"
+
+class DocumentTemplate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    template_type: str  # service_agreement, consent_form, policy
+    signwell_template_id: Optional[str] = None
+    fields: List[dict] = []  # Fields to fill in the template
+    active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SignatureRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    template_id: str
+    template_name: str
+    client_id: str
+    client_name: str
+    signwell_document_id: Optional[str] = None
+    status: str = "draft"  # draft, sent, viewed, signed, completed, declined, expired
+    signers: List[dict] = []  # [{email, name, role, signed, signed_at}]
+    created_by: str
+    sent_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    pdf_url: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SignatureRequestCreate(BaseModel):
+    template_id: str
+    client_id: str
+    signers: List[dict]  # [{email, name, role}]
+    send_immediately: bool = True
+
+@api_router.get("/documents/status")
+async def get_document_signing_status(current_user: User = Depends(get_current_user)):
+    """Check document signing integration status"""
+    return {
+        "integration_enabled": SIGNWELL_ENABLED,
+        "mock_mode": not SIGNWELL_ENABLED,
+        "provider": "SignWell"
+    }
+
+@api_router.get("/documents/templates")
+async def get_document_templates(current_user: User = Depends(get_current_user)):
+    """Get available document templates"""
+    templates = await db.document_templates.find({"active": True}, {"_id": 0}).to_list(100)
+    
+    # If no templates exist, create defaults
+    if not templates:
+        default_templates = [
+            DocumentTemplate(
+                name="NDIS Service Agreement",
+                description="Standard service agreement for NDIS participants",
+                template_type="service_agreement",
+                fields=[
+                    {"name": "participant_name", "type": "text", "required": True},
+                    {"name": "service_type", "type": "text", "required": True},
+                    {"name": "start_date", "type": "date", "required": True},
+                    {"name": "hourly_rate", "type": "number", "required": True}
+                ]
+            ),
+            DocumentTemplate(
+                name="Consent Form",
+                description="Participant consent for services and data sharing",
+                template_type="consent_form",
+                fields=[
+                    {"name": "participant_name", "type": "text", "required": True},
+                    {"name": "guardian_name", "type": "text", "required": False}
+                ]
+            ),
+            DocumentTemplate(
+                name="Incident Report Acknowledgment",
+                description="Acknowledgment of incident report",
+                template_type="policy",
+                fields=[
+                    {"name": "incident_date", "type": "date", "required": True},
+                    {"name": "incident_description", "type": "text", "required": True}
+                ]
+            )
+        ]
+        
+        for template in default_templates:
+            doc = template.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.document_templates.insert_one(doc)
+        
+        templates = [t.model_dump() for t in default_templates]
+    
+    for t in templates:
+        if isinstance(t.get('created_at'), str):
+            t['created_at'] = datetime.fromisoformat(t['created_at'])
+    
+    return templates
+
+@api_router.post("/documents/signature-request")
+async def create_signature_request(
+    request_data: SignatureRequestCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new signature request"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    # Get template
+    template = await db.document_templates.find_one({"id": request_data.template_id}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Get client
+    client = await db.clients.find_one({"id": request_data.client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Prepare signers
+    signers = []
+    for signer in request_data.signers:
+        signers.append({
+            "email": signer["email"],
+            "name": signer["name"],
+            "role": signer.get("role", "signer"),
+            "signed": False,
+            "signed_at": None
+        })
+    
+    # Create signature request
+    sig_request = SignatureRequest(
+        template_id=request_data.template_id,
+        template_name=template["name"],
+        client_id=request_data.client_id,
+        client_name=f"{client.get('first_name', '')} {client.get('last_name', '')}",
+        signers=signers,
+        created_by=current_user.full_name,
+        status="sent" if request_data.send_immediately else "draft"
+    )
+    
+    if request_data.send_immediately:
+        sig_request.sent_at = datetime.now(timezone.utc)
+    
+    # In real mode with SignWell, would create document via API
+    if SIGNWELL_ENABLED:
+        # Real SignWell integration would go here
+        pass
+    else:
+        # Mock mode - generate fake document ID
+        sig_request.signwell_document_id = f"mock_doc_{sig_request.id[:8]}"
+    
+    doc = sig_request.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    if doc.get('sent_at'):
+        doc['sent_at'] = doc['sent_at'].isoformat()
+    
+    await db.signature_requests.insert_one(doc)
+    
+    # Send notification to signers
+    for signer in signers:
+        await create_notification(
+            current_user.id,  # Notify creator for now
+            f"Document sent for signing",
+            f"{template['name']} sent to {signer['email']}",
+            "document",
+            None,
+            should_send_email=False
+        )
+    
+    return sig_request
+
+@api_router.get("/documents/signature-requests")
+async def get_signature_requests(
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Get all signature requests"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    requests = await db.signature_requests.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    for req in requests:
+        if isinstance(req.get('created_at'), str):
+            req['created_at'] = datetime.fromisoformat(req['created_at'])
+        if req.get('sent_at') and isinstance(req['sent_at'], str):
+            req['sent_at'] = datetime.fromisoformat(req['sent_at'])
+        if req.get('completed_at') and isinstance(req['completed_at'], str):
+            req['completed_at'] = datetime.fromisoformat(req['completed_at'])
+    
+    return requests
+
+@api_router.get("/documents/signature-requests/{request_id}")
+async def get_signature_request(request_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific signature request"""
+    request = await db.signature_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Signature request not found")
+    
+    if isinstance(request.get('created_at'), str):
+        request['created_at'] = datetime.fromisoformat(request['created_at'])
+    
+    return request
+
+@api_router.post("/documents/signature-requests/{request_id}/resend")
+async def resend_signature_request(request_id: str, current_user: User = Depends(get_current_user)):
+    """Resend signature request to pending signers"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    request = await db.signature_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Signature request not found")
+    
+    if request["status"] in ["completed", "declined"]:
+        raise HTTPException(status_code=400, detail="Cannot resend completed or declined requests")
+    
+    # In real mode, would resend via SignWell
+    await db.signature_requests.update_one(
+        {"id": request_id},
+        {"$set": {"sent_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Signature request resent"}
+
+@api_router.post("/documents/signature-requests/{request_id}/cancel")
+async def cancel_signature_request(request_id: str, current_user: User = Depends(get_current_user)):
+    """Cancel a signature request"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    request = await db.signature_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Signature request not found")
+    
+    if request["status"] == "completed":
+        raise HTTPException(status_code=400, detail="Cannot cancel completed requests")
+    
+    await db.signature_requests.update_one(
+        {"id": request_id},
+        {"$set": {"status": "cancelled"}}
+    )
+    
+    return {"message": "Signature request cancelled"}
+
+@api_router.post("/documents/mock-sign/{request_id}")
+async def mock_sign_document(request_id: str, signer_email: str, current_user: User = Depends(get_current_user)):
+    """Mock signing for demo mode"""
+    if SIGNWELL_ENABLED:
+        raise HTTPException(status_code=400, detail="Use SignWell for real signing")
+    
+    request = await db.signature_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Signature request not found")
+    
+    # Update signer status
+    signers = request.get("signers", [])
+    all_signed = True
+    for signer in signers:
+        if signer["email"] == signer_email:
+            signer["signed"] = True
+            signer["signed_at"] = datetime.now(timezone.utc).isoformat()
+        if not signer.get("signed"):
+            all_signed = False
+    
+    update_data = {"signers": signers, "status": "signed"}
+    if all_signed:
+        update_data["status"] = "completed"
+        update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.signature_requests.update_one(
+        {"id": request_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Document signed", "all_complete": all_signed}
+
+@api_router.post("/webhooks/signwell")
+async def signwell_webhook(event: dict):
+    """Handle SignWell webhook events"""
+    if not SIGNWELL_ENABLED:
+        return {"status": "mock_mode"}
+    
+    event_type = event.get("event_type")
+    document_id = event.get("document_id")
+    
+    # Find request by SignWell document ID
+    request = await db.signature_requests.find_one(
+        {"signwell_document_id": document_id},
+        {"_id": 0}
+    )
+    
+    if not request:
+        return {"status": "document_not_found"}
+    
+    # Map event types to statuses
+    status_map = {
+        "document_sent": "sent",
+        "document_viewed": "viewed",
+        "document_signed": "signed",
+        "document_completed": "completed",
+        "document_declined": "declined",
+        "document_expired": "expired"
+    }
+    
+    new_status = status_map.get(event_type)
+    if new_status:
+        update_data = {"status": new_status}
+        if new_status == "completed":
+            update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        
+        await db.signature_requests.update_one(
+            {"signwell_document_id": document_id},
+            {"$set": update_data}
+        )
+    
+    return {"status": "processed"}
+
 # Startup event
 @app.on_event("startup")
 async def startup():

@@ -21,6 +21,7 @@ import Communication from '@/pages/Communication';
 import Payments from '@/pages/Payments';
 import ComplianceCalendar from '@/pages/ComplianceCalendar';
 import Feedback from '@/pages/Feedback';
+import Documents from '@/pages/Documents';
 import Layout from '@/components/Layout';
 import '@/App.css';
 
@@ -95,6 +96,7 @@ function App() {
                     <Route path="/payments" element={<Payments />} />
                     <Route path="/calendar" element={<ComplianceCalendar />} />
                     <Route path="/feedback" element={<Feedback />} />
+                    <Route path="/documents" element={<Documents />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
