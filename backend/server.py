@@ -704,6 +704,107 @@ async def login(credentials: UserLogin):
     access_token = create_access_token({"sub": user.email})
     return Token(access_token=access_token, token_type="bearer", user=user)
 
+# Password Reset Models
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetVerify(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: PasswordResetRequest):
+    """Request a password reset code"""
+    user = await db.users.find_one({"email": request.email}, {"_id": 0})
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"message": "If an account exists with this email, a reset code has been sent."}
+    
+    # Generate 6-digit reset code
+    import random
+    reset_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    
+    # Store reset code with expiry (15 minutes)
+    expiry = datetime.now(timezone.utc) + timedelta(minutes=15)
+    await db.password_resets.update_one(
+        {"email": request.email},
+        {"$set": {
+            "email": request.email,
+            "code": reset_code,
+            "expires_at": expiry.isoformat(),
+            "used": False
+        }},
+        upsert=True
+    )
+    
+    # Send email with reset code
+    try:
+        if resend.api_key:
+            resend.Emails.send({
+                "from": SENDER_EMAIL,
+                "to": request.email,
+                "subject": "ProCare Hub - Password Reset Code",
+                "html": f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #1a5f4a;">Password Reset Request</h2>
+                        <p>You requested to reset your password for ProCare Hub.</p>
+                        <p style="font-size: 24px; font-weight: bold; background: #f0f9f6; padding: 20px; text-align: center; letter-spacing: 8px; border-radius: 8px;">
+                            {reset_code}
+                        </p>
+                        <p>This code will expire in 15 minutes.</p>
+                        <p>If you didn't request this, please ignore this email.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                        <p style="color: #666; font-size: 12px;">ProCare Hub - NDIS Provider Platform</p>
+                    </div>
+                """
+            })
+            logger.info(f"Password reset email sent to {request.email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        # In demo mode, log the code for testing
+        logger.info(f"[DEMO] Password reset code for {request.email}: {reset_code}")
+    
+    return {"message": "If an account exists with this email, a reset code has been sent."}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: PasswordResetVerify):
+    """Verify reset code and set new password"""
+    # Find the reset request
+    reset_record = await db.password_resets.find_one(
+        {"email": request.email, "code": request.code, "used": False},
+        {"_id": 0}
+    )
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(reset_record["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset code has expired")
+    
+    # Validate new password
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Update password
+    hashed_password = pwd_context.hash(request.new_password)
+    await db.users.update_one(
+        {"email": request.email},
+        {"$set": {"password": hashed_password}}
+    )
+    
+    # Mark reset code as used
+    await db.password_resets.update_one(
+        {"email": request.email, "code": request.code},
+        {"$set": {"used": True}}
+    )
+    
+    logger.info(f"Password reset successful for {request.email}")
+    return {"message": "Password reset successful. You can now login with your new password."}
+
 @api_router.get("/auth/me", response_model=User)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
