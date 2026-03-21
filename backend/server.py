@@ -167,6 +167,7 @@ class Staff(BaseModel):
     screening_expiry: Optional[str] = None
     status: str = "active"
     hourly_rate: float = 0.0
+    photo_url: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class StaffCreate(BaseModel):
@@ -176,6 +177,18 @@ class StaffCreate(BaseModel):
     position: str
     certifications: List[str] = []
     hourly_rate: float = 0.0
+
+class StaffAttendance(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    staff_id: str
+    staff_name: str
+    attendance_date: str
+    clock_in_time: str
+    clock_out_time: Optional[str] = None
+    total_hours: Optional[float] = None
+    is_clocked_in: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Shift(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -905,6 +918,157 @@ async def clock_out(log_id: str, end_time: str, current_user: User = Depends(get
     )
     
     return {"message": "Clocked out successfully", "total_hours": total_hours}
+
+# Staff Photo and Attendance Routes
+@api_router.post("/staff/{staff_id}/photo")
+async def upload_staff_photo(
+    staff_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    path = f"{APP_NAME}/uploads/staff/{staff_id}/photo.{ext}"
+    data = await file.read()
+    result = put_object(path, data, file.content_type or "image/jpeg")
+    
+    photo_url = f"/api/files/staff-photo/{staff_id}"
+    await db.staff.update_one({"id": staff_id}, {"$set": {"photo_url": photo_url}})
+    
+    file_record = FileRecord(
+        storage_path=result["path"],
+        original_filename=file.filename,
+        content_type=file.content_type or "image/jpeg",
+        size=result["size"],
+        uploaded_by=current_user.id,
+        entity_type="staff_photo",
+        entity_id=staff_id
+    )
+    doc = file_record.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.files.insert_one(doc)
+    
+    return {"photo_url": photo_url}
+
+@api_router.get("/files/staff-photo/{staff_id}")
+async def get_staff_photo(
+    staff_id: str,
+    auth: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None)
+):
+    record = await db.files.find_one({
+        "entity_type": "staff_photo",
+        "entity_id": staff_id,
+        "is_deleted": False
+    }, {"_id": 0}, sort=[("created_at", -1)])
+    
+    if not record:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    
+    data, content_type = get_object(record["storage_path"])
+    return Response(content=data, media_type=record.get("content_type", content_type))
+
+@api_router.post("/staff/{staff_id}/clock-in")
+async def staff_clock_in(staff_id: str, current_user: User = Depends(get_current_user)):
+    staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    # Check if already clocked in today
+    today = datetime.now(timezone.utc).date().isoformat()
+    existing = await db.staff_attendance.find_one({
+        "staff_id": staff_id,
+        "attendance_date": today,
+        "is_clocked_in": True
+    }, {"_id": 0})
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Already clocked in today")
+    
+    now = datetime.now(timezone.utc)
+    clock_in_time = now.strftime("%H:%M")
+    
+    attendance = StaffAttendance(
+        staff_id=staff_id,
+        staff_name=staff['full_name'],
+        attendance_date=today,
+        clock_in_time=clock_in_time,
+        is_clocked_in=True
+    )
+    
+    doc = attendance.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.staff_attendance.insert_one(doc)
+    
+    return attendance
+
+@api_router.post("/staff/{staff_id}/clock-out")
+async def staff_clock_out(staff_id: str, current_user: User = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    attendance = await db.staff_attendance.find_one({
+        "staff_id": staff_id,
+        "attendance_date": today,
+        "is_clocked_in": True
+    }, {"_id": 0})
+    
+    if not attendance:
+        raise HTTPException(status_code=404, detail="No active clock-in found")
+    
+    now = datetime.now(timezone.utc)
+    clock_out_time = now.strftime("%H:%M")
+    
+    from datetime import datetime as dt
+    start = dt.strptime(attendance['clock_in_time'], "%H:%M")
+    end = dt.strptime(clock_out_time, "%H:%M")
+    total_hours = (end - start).seconds / 3600
+    
+    await db.staff_attendance.update_one(
+        {"id": attendance['id']},
+        {"$set": {
+            "clock_out_time": clock_out_time,
+            "total_hours": total_hours,
+            "is_clocked_in": False
+        }}
+    )
+    
+    return {"message": "Clocked out successfully", "total_hours": round(total_hours, 2)}
+
+@api_router.get("/staff/{staff_id}/attendance-status")
+async def get_staff_attendance_status(staff_id: str, current_user: User = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    attendance = await db.staff_attendance.find_one({
+        "staff_id": staff_id,
+        "attendance_date": today
+    }, {"_id": 0}, sort=[("created_at", -1)])
+    
+    if not attendance:
+        return {"is_clocked_in": False, "attendance": None}
+    
+    if isinstance(attendance.get('created_at'), str):
+        attendance['created_at'] = datetime.fromisoformat(attendance['created_at'])
+    
+    return {
+        "is_clocked_in": attendance.get('is_clocked_in', False),
+        "attendance": StaffAttendance(**attendance)
+    }
+
+@api_router.get("/staff/attendance/today")
+async def get_todays_attendance(current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    attendances = await db.staff_attendance.find({
+        "attendance_date": today
+    }, {"_id": 0}).to_list(1000)
+    
+    for att in attendances:
+        if isinstance(att.get('created_at'), str):
+            att['created_at'] = datetime.fromisoformat(att['created_at'])
+    
+    return attendances
 
 # Invoice Routes
 @api_router.post("/invoices", response_model=Invoice)

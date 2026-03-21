@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Search, Pencil, Trash2, Upload, Clock, LogOut as LogOutIcon } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -23,6 +25,7 @@ const Staff = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [attendanceStatus, setAttendanceStatus] = useState({});
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -40,6 +43,21 @@ const Staff = () => {
     try {
       const response = await axios.get(`${API}/staff`, getAuthHeader());
       setStaff(response.data);
+      
+      // Fetch attendance status for each staff member
+      const statusPromises = response.data.map(async (member) => {
+        try {
+          const statusRes = await axios.get(`${API}/staff/${member.id}/attendance-status`, getAuthHeader());
+          return { id: member.id, status: statusRes.data };
+        } catch {
+          return { id: member.id, status: { is_clocked_in: false } };
+        }
+      });
+      
+      const statuses = await Promise.all(statusPromises);
+      const statusMap = {};
+      statuses.forEach(s => { statusMap[s.id] = s.status; });
+      setAttendanceStatus(statusMap);
     } catch (error) {
       toast.error('Failed to load staff');
     }
@@ -72,6 +90,45 @@ const Staff = () => {
       fetchStaff();
     } catch (error) {
       toast.error('Failed to delete staff');
+    }
+  };
+
+  const handlePhotoUpload = async (staffId, file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      await axios.post(`${API}/staff/${staffId}/photo`, formData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      toast.success('Photo uploaded successfully');
+      fetchStaff();
+    } catch (error) {
+      toast.error('Failed to upload photo');
+    }
+  };
+
+  const handleClockIn = async (staffId) => {
+    try {
+      await axios.post(`${API}/staff/${staffId}/clock-in`, {}, getAuthHeader());
+      toast.success('Clocked in successfully');
+      fetchStaff();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to clock in');
+    }
+  };
+
+  const handleClockOut = async (staffId) => {
+    try {
+      const response = await axios.post(`${API}/staff/${staffId}/clock-out`, {}, getAuthHeader());
+      toast.success(`Clocked out successfully. Total hours: ${response.data.total_hours}`);
+      fetchStaff();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to clock out');
     }
   };
 
@@ -255,7 +312,29 @@ const Staff = () => {
               <TableBody>
                 {filteredStaff.map((member) => (
                   <TableRow key={member.id} className="table-row" data-testid={`staff-row-${member.id}`}>
-                    <TableCell className="font-medium">{member.full_name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarImage src={member.photo_url ? `${API}${member.photo_url}?auth=${localStorage.getItem('token')}` : undefined} />
+                          <AvatarFallback className="bg-primary-100 text-primary-700">
+                            {member.full_name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{member.full_name}</div>
+                          <label className="text-xs text-primary cursor-pointer hover:underline">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => e.target.files[0] && handlePhotoUpload(member.id, e.target.files[0])}
+                            />
+                            <Upload className="w-3 h-3 inline mr-1" />
+                            Upload Photo
+                          </label>
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>{member.position}</TableCell>
                     <TableCell>
                       <div className="text-sm">
@@ -265,9 +344,42 @@ const Staff = () => {
                     </TableCell>
                     <TableCell>${member.hourly_rate}/hr</TableCell>
                     <TableCell>{getScreeningBadge(member.screening_status)}</TableCell>
-                    <TableCell>{getStatusBadge(member.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(member.status)}
+                        {attendanceStatus[member.id]?.is_clocked_in && (
+                          <Badge variant="default" className="bg-emerald-500">
+                            <Clock className="w-3 h-3 mr-1" />
+                            On Duty
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {attendanceStatus[member.id]?.is_clocked_in ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleClockOut(member.id)}
+                            data-testid={`clock-out-${member.id}`}
+                            className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                          >
+                            <LogOutIcon className="w-4 h-4 mr-1" />
+                            Clock Out
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleClockIn(member.id)}
+                            data-testid={`clock-in-${member.id}`}
+                            className="border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <Clock className="w-4 h-4 mr-1" />
+                            Clock In
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
