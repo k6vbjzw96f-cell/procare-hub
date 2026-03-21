@@ -14,6 +14,16 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
   - Mobile-optimized responsive design
   - Security indicators ("Secure Login" badge, SSL encryption notice)
   - Custom-styled SSO buttons matching app theme
+- **Landing Page & Marketing** (March 21, 2026) ✅:
+  - Professional landing page with hero section
+  - 4-tier pricing: Starter ($25), Growth ($45), Pro ($99), Organisation ($160)
+  - 14-day free trial badge (no credit card required)
+  - Request Demo modal with contact form
+  - Live support chat widget
+  - Features showcase section
+  - Customer testimonials
+  - Mobile-responsive design
+  - Footer with navigation links
 - **Dashboard**: Overview with stats, quick actions, recent activity
 - **Client Management**: Add/edit clients with photo uploads, support needs tracking
 - **Staff Management**: Staff records with certifications, clock-in/out, **break tracking**, photo uploads

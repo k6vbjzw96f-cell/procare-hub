@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
+import LandingPage from '@/pages/LandingPage';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import Clients from '@/pages/Clients';
@@ -87,6 +88,17 @@ function App() {
     <div className="App">
       <BrowserRouter>
         <Routes>
+          {/* Landing Page - shown to non-authenticated users at root */}
+          <Route
+            path="/"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <LandingPage />
+              )
+            }
+          />
           <Route
             path="/login"
             element={
@@ -108,6 +120,7 @@ function App() {
               )
             }
           />
+          {/* Protected Routes */}
           <Route
             path="/*"
             element={
@@ -136,11 +149,10 @@ function App() {
                     <Route path="/feedback" element={<Feedback />} />
                     <Route path="/documents" element={<Documents />} />
                     <Route path="/settings" element={<Settings />} />
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 </Layout>
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/" replace />
               )
             }
           />
