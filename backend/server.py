@@ -254,6 +254,84 @@ class ShiftCreate(BaseModel):
     service_type: str
     notes: Optional[str] = None
 
+# Shift Template Model
+class ShiftTemplate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    service_type: str
+    start_time: str
+    end_time: str
+    duration_hours: float
+    notes: Optional[str] = None
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ShiftTemplateCreate(BaseModel):
+    name: str
+    service_type: str
+    start_time: str
+    end_time: str
+    duration_hours: float
+    notes: Optional[str] = None
+
+# Recurring Shift Model
+class RecurringShift(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_id: str
+    client_name: str
+    staff_id: str
+    staff_name: str
+    service_type: str
+    start_time: str
+    end_time: str
+    duration_hours: float
+    recurrence_type: str  # daily, weekly, fortnightly, monthly
+    days_of_week: Optional[List[int]] = None  # 0=Monday, 6=Sunday
+    start_date: str
+    end_date: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool = True
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class RecurringShiftCreate(BaseModel):
+    client_id: str
+    staff_id: str
+    service_type: str
+    start_time: str
+    end_time: str
+    duration_hours: float
+    recurrence_type: str
+    days_of_week: Optional[List[int]] = None
+    start_date: str
+    end_date: Optional[str] = None
+    notes: Optional[str] = None
+
+# Bulk Schedule Request
+class BulkScheduleRequest(BaseModel):
+    client_id: str
+    staff_id: str
+    service_type: str
+    start_time: str
+    end_time: str
+    duration_hours: float
+    start_date: str
+    end_date: str
+    days_of_week: List[int]  # 0=Monday, 6=Sunday
+    notes: Optional[str] = None
+
+# Auto-Assign Request
+class AutoAssignRequest(BaseModel):
+    client_id: str
+    shift_date: str
+    start_time: str
+    end_time: str
+    duration_hours: float
+    service_type: str
+    notes: Optional[str] = None
+
 class HourLog(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1615,6 +1693,377 @@ async def delete_shift(shift_id: str, current_user: User = Depends(get_current_u
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Shift not found")
     return {"message": "Shift deleted successfully"}
+
+# ==================== SCHEDULING AUTOMATION ====================
+
+# Shift Templates
+@api_router.post("/shift-templates", response_model=ShiftTemplate)
+async def create_shift_template(template_data: ShiftTemplateCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    template_dict = template_data.model_dump()
+    template_dict['created_by'] = current_user.id
+    template = ShiftTemplate(**template_dict)
+    doc = template.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.shift_templates.insert_one(doc)
+    return template
+
+@api_router.get("/shift-templates", response_model=List[ShiftTemplate])
+async def get_shift_templates(current_user: User = Depends(get_current_user)):
+    templates = await db.shift_templates.find({}, {"_id": 0}).to_list(100)
+    for t in templates:
+        if isinstance(t.get('created_at'), str):
+            t['created_at'] = datetime.fromisoformat(t['created_at'])
+    return templates
+
+@api_router.delete("/shift-templates/{template_id}")
+async def delete_shift_template(template_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    result = await db.shift_templates.delete_one({"id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"message": "Template deleted successfully"}
+
+# Recurring Shifts
+@api_router.post("/recurring-shifts", response_model=RecurringShift)
+async def create_recurring_shift(recurring_data: RecurringShiftCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    client = await db.clients.find_one({"id": recurring_data.client_id}, {"_id": 0})
+    staff = await db.staff.find_one({"id": recurring_data.staff_id}, {"_id": 0})
+    
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    recurring_dict = recurring_data.model_dump()
+    recurring_dict['client_name'] = client['full_name']
+    recurring_dict['staff_name'] = staff['full_name']
+    recurring_dict['created_by'] = current_user.id
+    
+    recurring = RecurringShift(**recurring_dict)
+    doc = recurring.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.recurring_shifts.insert_one(doc)
+    return recurring
+
+@api_router.get("/recurring-shifts", response_model=List[RecurringShift])
+async def get_recurring_shifts(current_user: User = Depends(get_current_user)):
+    recurring = await db.recurring_shifts.find({"is_active": True}, {"_id": 0}).to_list(100)
+    for r in recurring:
+        if isinstance(r.get('created_at'), str):
+            r['created_at'] = datetime.fromisoformat(r['created_at'])
+    return recurring
+
+@api_router.put("/recurring-shifts/{recurring_id}")
+async def update_recurring_shift(recurring_id: str, data: dict, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    result = await db.recurring_shifts.update_one({"id": recurring_id}, {"$set": data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Recurring shift not found")
+    return {"message": "Recurring shift updated"}
+
+@api_router.delete("/recurring-shifts/{recurring_id}")
+async def delete_recurring_shift(recurring_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    result = await db.recurring_shifts.delete_one({"id": recurring_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Recurring shift not found")
+    return {"message": "Recurring shift deleted"}
+
+# Generate shifts from recurring pattern
+@api_router.post("/recurring-shifts/{recurring_id}/generate")
+async def generate_shifts_from_recurring(recurring_id: str, weeks: int = 4, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    recurring = await db.recurring_shifts.find_one({"id": recurring_id}, {"_id": 0})
+    if not recurring:
+        raise HTTPException(status_code=404, detail="Recurring shift not found")
+    
+    start = datetime.strptime(recurring['start_date'], "%Y-%m-%d")
+    end_date = recurring.get('end_date')
+    if end_date:
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    else:
+        end = start + timedelta(weeks=weeks)
+    
+    shifts_created = []
+    current = start
+    
+    while current <= end:
+        should_create = False
+        
+        if recurring['recurrence_type'] == 'daily':
+            should_create = True
+        elif recurring['recurrence_type'] == 'weekly':
+            if recurring.get('days_of_week') and current.weekday() in recurring['days_of_week']:
+                should_create = True
+        elif recurring['recurrence_type'] == 'fortnightly':
+            weeks_diff = (current - start).days // 7
+            if weeks_diff % 2 == 0 and recurring.get('days_of_week') and current.weekday() in recurring['days_of_week']:
+                should_create = True
+        elif recurring['recurrence_type'] == 'monthly':
+            if current.day == start.day:
+                should_create = True
+        
+        if should_create:
+            # Check if shift already exists
+            existing = await db.shifts.find_one({
+                "client_id": recurring['client_id'],
+                "staff_id": recurring['staff_id'],
+                "shift_date": current.strftime("%Y-%m-%d"),
+                "start_time": recurring['start_time']
+            })
+            
+            if not existing:
+                shift = Shift(
+                    client_id=recurring['client_id'],
+                    client_name=recurring['client_name'],
+                    staff_id=recurring['staff_id'],
+                    staff_name=recurring['staff_name'],
+                    shift_date=current.strftime("%Y-%m-%d"),
+                    start_time=recurring['start_time'],
+                    end_time=recurring['end_time'],
+                    duration_hours=recurring['duration_hours'],
+                    service_type=recurring['service_type'],
+                    notes=recurring.get('notes', '')
+                )
+                doc = shift.model_dump()
+                doc['created_at'] = doc['created_at'].isoformat()
+                await db.shifts.insert_one(doc)
+                shifts_created.append(shift.id)
+        
+        current += timedelta(days=1)
+    
+    return {"message": f"Generated {len(shifts_created)} shifts", "shift_ids": shifts_created}
+
+# Bulk Schedule
+@api_router.post("/shifts/bulk-schedule")
+async def bulk_schedule_shifts(request: BulkScheduleRequest, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    client = await db.clients.find_one({"id": request.client_id}, {"_id": 0})
+    staff = await db.staff.find_one({"id": request.staff_id}, {"_id": 0})
+    
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    start = datetime.strptime(request.start_date, "%Y-%m-%d")
+    end = datetime.strptime(request.end_date, "%Y-%m-%d")
+    
+    shifts_created = []
+    current = start
+    
+    while current <= end:
+        if current.weekday() in request.days_of_week:
+            # Check if shift already exists
+            existing = await db.shifts.find_one({
+                "client_id": request.client_id,
+                "staff_id": request.staff_id,
+                "shift_date": current.strftime("%Y-%m-%d"),
+                "start_time": request.start_time
+            })
+            
+            if not existing:
+                shift = Shift(
+                    client_id=request.client_id,
+                    client_name=client['full_name'],
+                    staff_id=request.staff_id,
+                    staff_name=staff['full_name'],
+                    shift_date=current.strftime("%Y-%m-%d"),
+                    start_time=request.start_time,
+                    end_time=request.end_time,
+                    duration_hours=request.duration_hours,
+                    service_type=request.service_type,
+                    notes=request.notes or ''
+                )
+                doc = shift.model_dump()
+                doc['created_at'] = doc['created_at'].isoformat()
+                await db.shifts.insert_one(doc)
+                shifts_created.append({
+                    "id": shift.id,
+                    "date": current.strftime("%Y-%m-%d")
+                })
+        
+        current += timedelta(days=1)
+    
+    # Notify staff
+    staff_user = await db.users.find_one({"email": staff['email']}, {"_id": 0})
+    if staff_user and shifts_created:
+        await create_notification(
+            staff_user['id'],
+            "New Shifts Scheduled",
+            f"You have been assigned {len(shifts_created)} shifts with {client['full_name']} from {request.start_date} to {request.end_date}.",
+            "shift",
+            "/rostering",
+            should_send_email=True
+        )
+    
+    return {"message": f"Created {len(shifts_created)} shifts", "shifts": shifts_created}
+
+# Auto-Assign Staff
+@api_router.post("/shifts/auto-assign")
+async def auto_assign_staff(request: AutoAssignRequest, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    client = await db.clients.find_one({"id": request.client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Get all active staff
+    all_staff = await db.staff.find({"status": "active"}, {"_id": 0}).to_list(100)
+    
+    # Get shifts on the requested date
+    existing_shifts = await db.shifts.find({
+        "shift_date": request.shift_date,
+        "status": {"$ne": "cancelled"}
+    }, {"_id": 0}).to_list(500)
+    
+    # Get staff availability
+    availabilities = await db.availability.find({}, {"_id": 0}).to_list(500)
+    availability_map = {a['staff_id']: a for a in availabilities}
+    
+    # Score each staff member
+    staff_scores = []
+    shift_start = datetime.strptime(request.start_time, "%H:%M")
+    shift_end = datetime.strptime(request.end_time, "%H:%M")
+    request_day = datetime.strptime(request.shift_date, "%Y-%m-%d").weekday()
+    
+    for staff in all_staff:
+        score = 100  # Base score
+        reasons = []
+        
+        # Check if staff is already booked
+        staff_shifts = [s for s in existing_shifts if s['staff_id'] == staff['id']]
+        for es in staff_shifts:
+            es_start = datetime.strptime(es['start_time'], "%H:%M")
+            es_end = datetime.strptime(es['end_time'], "%H:%M")
+            # Check for time overlap
+            if not (shift_end <= es_start or shift_start >= es_end):
+                score = -1  # Not available
+                reasons.append("Already has conflicting shift")
+                break
+        
+        if score < 0:
+            continue
+        
+        # Check availability preferences
+        avail = availability_map.get(staff['id'])
+        if avail:
+            day_avail = avail.get('availability', {}).get(str(request_day), {})
+            if not day_avail.get('available', True):
+                score -= 50
+                reasons.append("Marked as unavailable this day")
+            else:
+                pref_start = day_avail.get('start_time', '00:00')
+                pref_end = day_avail.get('end_time', '23:59')
+                if request.start_time >= pref_start and request.end_time <= pref_end:
+                    score += 20
+                    reasons.append("Within preferred hours")
+        
+        # Check workload balance (fewer shifts = higher priority)
+        weekly_shifts = [s for s in existing_shifts if s['staff_id'] == staff['id']]
+        if len(weekly_shifts) < 3:
+            score += 15
+            reasons.append("Low workload this week")
+        elif len(weekly_shifts) > 6:
+            score -= 20
+            reasons.append("High workload this week")
+        
+        # Check qualifications (simplified - could be enhanced)
+        qualifications = staff.get('qualifications', [])
+        if request.service_type.lower() in [q.lower() for q in qualifications]:
+            score += 25
+            reasons.append("Has relevant qualifications")
+        
+        # Check if they've worked with this client before (familiarity bonus)
+        past_shifts = await db.shifts.find({
+            "staff_id": staff['id'],
+            "client_id": request.client_id,
+            "status": "completed"
+        }, {"_id": 0}).to_list(10)
+        if past_shifts:
+            score += 30
+            reasons.append(f"Has worked with this client before ({len(past_shifts)} shifts)")
+        
+        if score > 0:
+            staff_scores.append({
+                "staff_id": staff['id'],
+                "staff_name": staff['full_name'],
+                "score": score,
+                "reasons": reasons,
+                "email": staff.get('email', ''),
+                "phone": staff.get('phone', '')
+            })
+    
+    # Sort by score
+    staff_scores.sort(key=lambda x: x['score'], reverse=True)
+    
+    return {
+        "client_name": client['full_name'],
+        "shift_date": request.shift_date,
+        "shift_time": f"{request.start_time} - {request.end_time}",
+        "service_type": request.service_type,
+        "suggestions": staff_scores[:5],  # Top 5 suggestions
+        "total_available": len(staff_scores)
+    }
+
+# Auto-assign and create shift
+@api_router.post("/shifts/auto-assign-create")
+async def auto_assign_and_create(request: AutoAssignRequest, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    # Get suggestions
+    suggestions = await auto_assign_staff(request, current_user)
+    
+    if not suggestions['suggestions']:
+        raise HTTPException(status_code=400, detail="No available staff found for this shift")
+    
+    # Use the top suggestion
+    best_match = suggestions['suggestions'][0]
+    
+    client = await db.clients.find_one({"id": request.client_id}, {"_id": 0})
+    staff = await db.staff.find_one({"id": best_match['staff_id']}, {"_id": 0})
+    
+    shift = Shift(
+        client_id=request.client_id,
+        client_name=client['full_name'],
+        staff_id=best_match['staff_id'],
+        staff_name=best_match['staff_name'],
+        shift_date=request.shift_date,
+        start_time=request.start_time,
+        end_time=request.end_time,
+        duration_hours=request.duration_hours,
+        service_type=request.service_type,
+        notes=request.notes or ''
+    )
+    doc = shift.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.shifts.insert_one(doc)
+    
+    # Notify staff
+    staff_user = await db.users.find_one({"email": staff['email']}, {"_id": 0})
+    if staff_user:
+        await create_notification(
+            staff_user['id'],
+            "New Shift Auto-Assigned",
+            f"You have been assigned to {client['full_name']} on {request.shift_date} at {request.start_time}.",
+            "shift",
+            "/rostering",
+            should_send_email=True
+        )
+    
+    return {
+        "message": "Shift created with auto-assigned staff",
+        "shift": shift,
+        "assigned_staff": best_match,
+        "assignment_reasons": best_match['reasons']
+    }
+
+# ==================== END SCHEDULING AUTOMATION ====================
 
 # Hour Logging Routes
 @api_router.post("/hours", response_model=HourLog)

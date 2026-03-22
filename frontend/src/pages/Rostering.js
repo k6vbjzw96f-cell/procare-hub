@@ -2,12 +2,18 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardDescription, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  Plus, Calendar as CalendarIcon, Pencil, Trash2, Download, FileSpreadsheet, FileText, 
+  Repeat, Wand2, Copy, CalendarDays, Users, Sparkles, Check, Clock, AlertCircle
+} from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -36,6 +42,19 @@ const Rostering = () => {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('shifts');
+  
+  // Automation modals
+  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
+  const [showRecurring, setShowRecurring] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showAutoAssign, setShowAutoAssign] = useState(false);
+  const [autoAssignSuggestions, setAutoAssignSuggestions] = useState(null);
+  
+  // Templates & Recurring
+  const [templates, setTemplates] = useState([]);
+  const [recurringShifts, setRecurringShifts] = useState([]);
+  
   const [brandColors, setBrandColors] = useState({
     primary_color: '#10b981',
     secondary_color: '#14b8a6',
@@ -53,9 +72,71 @@ const Rostering = () => {
     notes: '',
   });
 
+  // Bulk Schedule Form
+  const [bulkForm, setBulkForm] = useState({
+    client_id: '',
+    staff_id: '',
+    service_type: '',
+    start_time: '09:00',
+    end_time: '17:00',
+    duration_hours: 8,
+    start_date: '',
+    end_date: '',
+    days_of_week: [],
+    notes: '',
+  });
+
+  // Recurring Shift Form
+  const [recurringForm, setRecurringForm] = useState({
+    client_id: '',
+    staff_id: '',
+    service_type: '',
+    start_time: '09:00',
+    end_time: '17:00',
+    duration_hours: 8,
+    recurrence_type: 'weekly',
+    days_of_week: [],
+    start_date: '',
+    end_date: '',
+    notes: '',
+  });
+
+  // Template Form
+  const [templateForm, setTemplateForm] = useState({
+    name: '',
+    service_type: '',
+    start_time: '09:00',
+    end_time: '17:00',
+    duration_hours: 8,
+    notes: '',
+  });
+
+  // Auto-Assign Form
+  const [autoAssignForm, setAutoAssignForm] = useState({
+    client_id: '',
+    shift_date: '',
+    start_time: '09:00',
+    end_time: '17:00',
+    duration_hours: 8,
+    service_type: '',
+    notes: '',
+  });
+
+  const DAYS_OF_WEEK = [
+    { value: 0, label: 'Mon' },
+    { value: 1, label: 'Tue' },
+    { value: 2, label: 'Wed' },
+    { value: 3, label: 'Thu' },
+    { value: 4, label: 'Fri' },
+    { value: 5, label: 'Sat' },
+    { value: 6, label: 'Sun' },
+  ];
+
   useEffect(() => {
     fetchData();
     fetchBrandSettings();
+    fetchTemplates();
+    fetchRecurringShifts();
   }, []);
 
   const fetchData = async () => {
@@ -82,6 +163,154 @@ const Rostering = () => {
       }
     } catch (error) {
       // Use defaults
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await axios.get(`${API}/shift-templates`, getAuthHeader());
+      setTemplates(response.data);
+    } catch (error) {
+      // Ignore
+    }
+  };
+
+  const fetchRecurringShifts = async () => {
+    try {
+      const response = await axios.get(`${API}/recurring-shifts`, getAuthHeader());
+      setRecurringShifts(response.data);
+    } catch (error) {
+      // Ignore
+    }
+  };
+
+  // Bulk Schedule Handler
+  const handleBulkSchedule = async (e) => {
+    e.preventDefault();
+    if (bulkForm.days_of_week.length === 0) {
+      toast.error('Please select at least one day');
+      return;
+    }
+    try {
+      const response = await axios.post(`${API}/shifts/bulk-schedule`, bulkForm, getAuthHeader());
+      toast.success(response.data.message);
+      setShowBulkSchedule(false);
+      fetchData();
+      setBulkForm({
+        client_id: '', staff_id: '', service_type: '', start_time: '09:00', end_time: '17:00',
+        duration_hours: 8, start_date: '', end_date: '', days_of_week: [], notes: '',
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create bulk schedule');
+    }
+  };
+
+  // Recurring Shift Handler
+  const handleCreateRecurring = async (e) => {
+    e.preventDefault();
+    if (recurringForm.recurrence_type === 'weekly' && recurringForm.days_of_week.length === 0) {
+      toast.error('Please select at least one day for weekly recurrence');
+      return;
+    }
+    try {
+      await axios.post(`${API}/recurring-shifts`, recurringForm, getAuthHeader());
+      toast.success('Recurring shift created');
+      setShowRecurring(false);
+      fetchRecurringShifts();
+      setRecurringForm({
+        client_id: '', staff_id: '', service_type: '', start_time: '09:00', end_time: '17:00',
+        duration_hours: 8, recurrence_type: 'weekly', days_of_week: [], start_date: '', end_date: '', notes: '',
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create recurring shift');
+    }
+  };
+
+  // Generate shifts from recurring
+  const handleGenerateFromRecurring = async (recurringId) => {
+    try {
+      const response = await axios.post(`${API}/recurring-shifts/${recurringId}/generate?weeks=4`, {}, getAuthHeader());
+      toast.success(response.data.message);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to generate shifts');
+    }
+  };
+
+  // Template Handlers
+  const handleSaveTemplate = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/shift-templates`, templateForm, getAuthHeader());
+      toast.success('Template saved');
+      fetchTemplates();
+      setTemplateForm({ name: '', service_type: '', start_time: '09:00', end_time: '17:00', duration_hours: 8, notes: '' });
+    } catch (error) {
+      toast.error('Failed to save template');
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    try {
+      await axios.delete(`${API}/shift-templates/${templateId}`, getAuthHeader());
+      toast.success('Template deleted');
+      fetchTemplates();
+    } catch (error) {
+      toast.error('Failed to delete template');
+    }
+  };
+
+  const applyTemplate = (template) => {
+    setFormData(prev => ({
+      ...prev,
+      service_type: template.service_type,
+      start_time: template.start_time,
+      end_time: template.end_time,
+      duration_hours: template.duration_hours,
+      notes: template.notes || '',
+    }));
+    setShowTemplates(false);
+    setIsDialogOpen(true);
+    toast.success(`Template "${template.name}" applied`);
+  };
+
+  // Auto-Assign Handler
+  const handleAutoAssign = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${API}/shifts/auto-assign`, autoAssignForm, getAuthHeader());
+      setAutoAssignSuggestions(response.data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to get suggestions');
+    }
+  };
+
+  const handleConfirmAutoAssign = async (staffSuggestion) => {
+    try {
+      const shiftData = {
+        ...autoAssignForm,
+        staff_id: staffSuggestion.staff_id,
+      };
+      await axios.post(`${API}/shifts`, shiftData, getAuthHeader());
+      toast.success(`Shift assigned to ${staffSuggestion.staff_name}`);
+      setShowAutoAssign(false);
+      setAutoAssignSuggestions(null);
+      setAutoAssignForm({
+        client_id: '', shift_date: '', start_time: '09:00', end_time: '17:00',
+        duration_hours: 8, service_type: '', notes: '',
+      });
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to create shift');
+    }
+  };
+
+  // Toggle day selection
+  const toggleDay = (dayValue, formSetter, currentDays) => {
+    if (currentDays.includes(dayValue)) {
+      formSetter(prev => ({ ...prev, days_of_week: prev.days_of_week.filter(d => d !== dayValue) }));
+    } else {
+      formSetter(prev => ({ ...prev, days_of_week: [...prev.days_of_week, dayValue] }));
     }
   };
 
@@ -342,6 +571,40 @@ const Rostering = () => {
           <p className="text-slate-600">Schedule and manage staff shifts</p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Automation Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="bg-gradient-to-r from-primary/5 to-emerald-50 border-primary/20 hover:border-primary/40">
+                <Wand2 className="w-4 h-4 mr-2 text-primary" />
+                Automate
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setShowBulkSchedule(true)} className="cursor-pointer">
+                <CalendarDays className="w-4 h-4 mr-2 text-blue-600" />
+                Bulk Schedule
+                <span className="ml-auto text-xs text-slate-400">Week/Month</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowRecurring(true)} className="cursor-pointer">
+                <Repeat className="w-4 h-4 mr-2 text-purple-600" />
+                Recurring Shifts
+                <span className="ml-auto text-xs text-slate-400">Auto-repeat</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowAutoAssign(true)} className="cursor-pointer">
+                <Sparkles className="w-4 h-4 mr-2 text-amber-600" />
+                Auto-Assign Staff
+                <span className="ml-auto text-xs text-slate-400">AI Match</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowTemplates(true)} className="cursor-pointer">
+                <Copy className="w-4 h-4 mr-2 text-slate-600" />
+                Shift Templates
+                <span className="ml-auto text-xs text-slate-400">{templates.length}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* Export Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -565,6 +828,428 @@ const Rostering = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* ==================== AUTOMATION MODALS ==================== */}
+
+      {/* Bulk Schedule Modal */}
+      <Dialog open={showBulkSchedule} onOpenChange={setShowBulkSchedule}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-blue-600" />
+              Bulk Schedule Shifts
+            </DialogTitle>
+            <DialogDescription>Create multiple shifts at once for a date range</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleBulkSchedule} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Client *</Label>
+                <Select value={bulkForm.client_id} onValueChange={(v) => setBulkForm({ ...bulkForm, client_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Staff *</Label>
+                <Select value={bulkForm.staff_id} onValueChange={(v) => setBulkForm({ ...bulkForm, staff_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.filter(s => s.status === 'active').map((s) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Service Type *</Label>
+              <Select value={bulkForm.service_type} onValueChange={(v) => setBulkForm({ ...bulkForm, service_type: v })}>
+                <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
+                <SelectContent>
+                  {Object.keys(SERVICE_COLORS).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date *</Label>
+                <Input type="date" value={bulkForm.start_date} onChange={(e) => setBulkForm({ ...bulkForm, start_date: e.target.value })} required />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date *</Label>
+                <Input type="date" value={bulkForm.end_date} onChange={(e) => setBulkForm({ ...bulkForm, end_date: e.target.value })} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Start Time</Label>
+                <Input type="time" value={bulkForm.start_time} onChange={(e) => setBulkForm({ ...bulkForm, start_time: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>End Time</Label>
+                <Input type="time" value={bulkForm.end_time} onChange={(e) => setBulkForm({ ...bulkForm, end_time: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Hours</Label>
+                <Input type="number" step="0.5" value={bulkForm.duration_hours} onChange={(e) => setBulkForm({ ...bulkForm, duration_hours: parseFloat(e.target.value) })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Days of Week *</Label>
+              <div className="flex gap-2 flex-wrap">
+                {DAYS_OF_WEEK.map((day) => (
+                  <Button
+                    key={day.value}
+                    type="button"
+                    size="sm"
+                    variant={bulkForm.days_of_week.includes(day.value) ? 'default' : 'outline'}
+                    onClick={() => toggleDay(day.value, setBulkForm, bulkForm.days_of_week)}
+                    className="w-12"
+                  >
+                    {day.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setShowBulkSchedule(false)}>Cancel</Button>
+              <Button type="submit">Create Shifts</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recurring Shifts Modal */}
+      <Dialog open={showRecurring} onOpenChange={setShowRecurring}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Repeat className="w-5 h-5 text-purple-600" />
+              Recurring Shifts
+            </DialogTitle>
+            <DialogDescription>Set up shifts that automatically repeat</DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="create">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="create">Create New</TabsTrigger>
+              <TabsTrigger value="manage">Manage ({recurringShifts.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="create" className="space-y-4 mt-4">
+              <form onSubmit={handleCreateRecurring} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Client *</Label>
+                    <Select value={recurringForm.client_id} onValueChange={(v) => setRecurringForm({ ...recurringForm, client_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                      <SelectContent>
+                        {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Staff *</Label>
+                    <Select value={recurringForm.staff_id} onValueChange={(v) => setRecurringForm({ ...recurringForm, staff_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
+                      <SelectContent>
+                        {staff.filter(s => s.status === 'active').map((s) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Service Type *</Label>
+                    <Select value={recurringForm.service_type} onValueChange={(v) => setRecurringForm({ ...recurringForm, service_type: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
+                      <SelectContent>
+                        {Object.keys(SERVICE_COLORS).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Recurrence *</Label>
+                    <Select value={recurringForm.recurrence_type} onValueChange={(v) => setRecurringForm({ ...recurringForm, recurrence_type: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {(recurringForm.recurrence_type === 'weekly' || recurringForm.recurrence_type === 'fortnightly') && (
+                  <div className="space-y-2">
+                    <Label>Days of Week *</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      {DAYS_OF_WEEK.map((day) => (
+                        <Button
+                          key={day.value}
+                          type="button"
+                          size="sm"
+                          variant={recurringForm.days_of_week.includes(day.value) ? 'default' : 'outline'}
+                          onClick={() => toggleDay(day.value, setRecurringForm, recurringForm.days_of_week)}
+                          className="w-12"
+                        >
+                          {day.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Date *</Label>
+                    <Input type="date" value={recurringForm.start_date} onChange={(e) => setRecurringForm({ ...recurringForm, start_date: e.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date (Optional)</Label>
+                    <Input type="date" value={recurringForm.end_date} onChange={(e) => setRecurringForm({ ...recurringForm, end_date: e.target.value })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Time</Label>
+                    <Input type="time" value={recurringForm.start_time} onChange={(e) => setRecurringForm({ ...recurringForm, start_time: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Time</Label>
+                    <Input type="time" value={recurringForm.end_time} onChange={(e) => setRecurringForm({ ...recurringForm, end_time: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hours</Label>
+                    <Input type="number" step="0.5" value={recurringForm.duration_hours} onChange={(e) => setRecurringForm({ ...recurringForm, duration_hours: parseFloat(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => setShowRecurring(false)}>Cancel</Button>
+                  <Button type="submit">Create Recurring</Button>
+                </div>
+              </form>
+            </TabsContent>
+            <TabsContent value="manage" className="mt-4">
+              {recurringShifts.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">No recurring shifts set up</div>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {recurringShifts.map((r) => (
+                    <div key={r.id} className="p-4 border rounded-lg flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{r.client_name} → {r.staff_name}</p>
+                        <p className="text-sm text-slate-500">{r.service_type} | {r.start_time}-{r.end_time} | {r.recurrence_type}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleGenerateFromRecurring(r.id)}>
+                          Generate 4 weeks
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={async () => {
+                          await axios.delete(`${API}/recurring-shifts/${r.id}`, getAuthHeader());
+                          fetchRecurringShifts();
+                          toast.success('Recurring shift deleted');
+                        }}>
+                          <Trash2 className="w-4 h-4 text-rose-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift Templates Modal */}
+      <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="w-5 h-5 text-slate-600" />
+              Shift Templates
+            </DialogTitle>
+            <DialogDescription>Save and reuse common shift configurations</DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="use">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="use">Use Template</TabsTrigger>
+              <TabsTrigger value="create">Create New</TabsTrigger>
+            </TabsList>
+            <TabsContent value="use" className="mt-4">
+              {templates.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">No templates saved yet</div>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {templates.map((t) => (
+                    <div key={t.id} className="p-3 border rounded-lg flex items-center justify-between hover:bg-slate-50 cursor-pointer" onClick={() => applyTemplate(t)}>
+                      <div>
+                        <p className="font-medium">{t.name}</p>
+                        <p className="text-sm text-slate-500">{t.service_type} | {t.start_time}-{t.end_time} ({t.duration_hours}h)</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(t.id); }}>
+                          <Trash2 className="w-4 h-4 text-rose-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="create" className="mt-4">
+              <form onSubmit={handleSaveTemplate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Template Name *</Label>
+                  <Input value={templateForm.name} onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })} placeholder="e.g., Morning SIL Shift" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Service Type *</Label>
+                  <Select value={templateForm.service_type} onValueChange={(v) => setTemplateForm({ ...templateForm, service_type: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(SERVICE_COLORS).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Time</Label>
+                    <Input type="time" value={templateForm.start_time} onChange={(e) => setTemplateForm({ ...templateForm, start_time: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Time</Label>
+                    <Input type="time" value={templateForm.end_time} onChange={(e) => setTemplateForm({ ...templateForm, end_time: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hours</Label>
+                    <Input type="number" step="0.5" value={templateForm.duration_hours} onChange={(e) => setTemplateForm({ ...templateForm, duration_hours: parseFloat(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Input value={templateForm.notes} onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })} placeholder="Optional notes" />
+                </div>
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => setShowTemplates(false)}>Cancel</Button>
+                  <Button type="submit">Save Template</Button>
+                </div>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-Assign Modal */}
+      <Dialog open={showAutoAssign} onOpenChange={(open) => { setShowAutoAssign(open); if (!open) setAutoAssignSuggestions(null); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-600" />
+              Auto-Assign Staff
+            </DialogTitle>
+            <DialogDescription>Let the system suggest the best available staff</DialogDescription>
+          </DialogHeader>
+          {!autoAssignSuggestions ? (
+            <form onSubmit={handleAutoAssign} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Client *</Label>
+                <Select value={autoAssignForm.client_id} onValueChange={(v) => setAutoAssignForm({ ...autoAssignForm, client_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Service Type *</Label>
+                <Select value={autoAssignForm.service_type} onValueChange={(v) => setAutoAssignForm({ ...autoAssignForm, service_type: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(SERVICE_COLORS).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Shift Date *</Label>
+                <Input type="date" value={autoAssignForm.shift_date} onChange={(e) => setAutoAssignForm({ ...autoAssignForm, shift_date: e.target.value })} required />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Time</Label>
+                  <Input type="time" value={autoAssignForm.start_time} onChange={(e) => setAutoAssignForm({ ...autoAssignForm, start_time: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Time</Label>
+                  <Input type="time" value={autoAssignForm.end_time} onChange={(e) => setAutoAssignForm({ ...autoAssignForm, end_time: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hours</Label>
+                  <Input type="number" step="0.5" value={autoAssignForm.duration_hours} onChange={(e) => setAutoAssignForm({ ...autoAssignForm, duration_hours: parseFloat(e.target.value) })} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => setShowAutoAssign(false)}>Cancel</Button>
+                <Button type="submit">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Find Best Match
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  <strong>{autoAssignSuggestions.client_name}</strong> on {autoAssignSuggestions.shift_date} ({autoAssignSuggestions.shift_time})
+                </p>
+                <p className="text-xs text-slate-500">{autoAssignSuggestions.service_type} | {autoAssignSuggestions.total_available} staff available</p>
+              </div>
+              
+              {autoAssignSuggestions.suggestions.length === 0 ? (
+                <div className="text-center py-6">
+                  <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                  <p className="text-slate-600">No available staff found for this shift</p>
+                  <p className="text-sm text-slate-400">Try a different date or time</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  {autoAssignSuggestions.suggestions.map((s, idx) => (
+                    <div key={s.staff_id} className={`p-4 border rounded-lg ${idx === 0 ? 'border-primary bg-primary/5' : ''}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {idx === 0 && <Badge className="bg-primary text-white">Best Match</Badge>}
+                          <span className="font-medium">{s.staff_name}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-primary">Score: {s.score}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {s.reasons.map((r, i) => (
+                          <Badge key={i} variant="outline" className="text-xs font-normal">
+                            <Check className="w-3 h-3 mr-1" />
+                            {r}
+                          </Badge>
+                        ))}
+                      </div>
+                      <Button size="sm" className="w-full" onClick={() => handleConfirmAutoAssign(s)}>
+                        Assign to {s.staff_name}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setAutoAssignSuggestions(null)}>
+                  ← Back
+                </Button>
+                <Button variant="ghost" onClick={() => { setShowAutoAssign(false); setAutoAssignSuggestions(null); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
