@@ -703,7 +703,7 @@ const CreateInvoiceForm = ({ clients, onSubmit, onCancel }) => {
       {step === 3 && (
         <div className="space-y-6">
           {/* Summary Card */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl p-6 text-white">
             <div className="flex items-start justify-between mb-6">
               <div>
                 <p className="text-slate-400 text-sm uppercase tracking-wider">Invoice Preview</p>
