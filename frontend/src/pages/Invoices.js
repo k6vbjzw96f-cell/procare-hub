@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, FileText, Trash2, Download, Printer, Send, X } from 'lucide-react';
+import { Plus, FileText, Trash2, Download, Printer, Send, X, Upload, Building2, ImagePlus } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -40,12 +40,14 @@ const PAYMENT_TERMS = [
 ];
 
 // Professional Invoice View Template
-const InvoiceTemplate = ({ invoice, client, onClose }) => {
+const InvoiceTemplate = ({ invoice, client, companySettings, onClose }) => {
   const handlePrint = () => window.print();
   const handleDownload = () => {
     window.print();
     toast.success('Use "Save as PDF" in the print dialog');
   };
+
+  const hasCompanyInfo = companySettings?.company_name || companySettings?.logo_url;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-auto">
@@ -68,7 +70,19 @@ const InvoiceTemplate = ({ invoice, client, onClose }) => {
         <div className="p-8 print:p-12" id="invoice-content">
           <div className="flex justify-between items-start mb-8">
             <div className="flex items-center gap-4">
-              <img src="/procare-logo.png" alt="ProCare Hub" className="h-16 w-auto" />
+              {companySettings?.logo_url ? (
+                <img src={companySettings.logo_url} alt={companySettings.company_name || 'Company'} className="h-16 w-auto object-contain" />
+              ) : (
+                <div className="h-16 w-16 bg-slate-100 rounded-lg flex items-center justify-center">
+                  <Building2 className="w-8 h-8 text-slate-400" />
+                </div>
+              )}
+              {hasCompanyInfo && (
+                <div>
+                  <p className="font-semibold text-lg text-slate-900">{companySettings?.company_name || 'Your Company'}</p>
+                  {companySettings?.tagline && <p className="text-slate-500 text-sm">{companySettings.tagline}</p>}
+                </div>
+              )}
             </div>
             <div className="text-right">
               <h1 className="text-3xl font-bold text-emerald-600 tracking-tight">INVOICE</h1>
@@ -79,10 +93,21 @@ const InvoiceTemplate = ({ invoice, client, onClose }) => {
           <div className="grid grid-cols-2 gap-8 mb-8">
             <div>
               <h3 className="text-sm font-semibold text-emerald-600 uppercase tracking-wider mb-3">From</h3>
-              <p className="font-semibold text-lg text-slate-900">ProCare Hub</p>
-              <p className="text-slate-600">NDIS Provider Services</p>
-              <p className="text-slate-600">ABN: XX XXX XXX XXX</p>
-              <p className="text-slate-600 mt-2">support@procare-hub.com</p>
+              {hasCompanyInfo ? (
+                <div className="text-slate-700">
+                  <p className="font-semibold text-lg text-slate-900">{companySettings?.company_name}</p>
+                  {companySettings?.tagline && <p className="text-slate-600">{companySettings.tagline}</p>}
+                  {companySettings?.abn && <p className="text-slate-600">ABN: {companySettings.abn}</p>}
+                  {companySettings?.email && <p className="text-slate-600 mt-2">{companySettings.email}</p>}
+                  {companySettings?.phone && <p className="text-slate-600">{companySettings.phone}</p>}
+                  {companySettings?.website && <p className="text-slate-600">{companySettings.website}</p>}
+                </div>
+              ) : (
+                <div className="text-slate-400 italic">
+                  <p>Company information not set up</p>
+                  <p className="text-sm">Go to Settings to add your company details</p>
+                </div>
+              )}
             </div>
             <div>
               <h3 className="text-sm font-semibold text-emerald-600 uppercase tracking-wider mb-3">Bill To</h3>
@@ -144,8 +169,15 @@ const InvoiceTemplate = ({ invoice, client, onClose }) => {
           <div className="flex justify-between mb-8">
             <div className="max-w-sm">
               <p className="text-emerald-600 font-semibold mb-2">Thank you for your business</p>
-              <p className="text-sm text-slate-500">Terms & Conditions:</p>
-              <p className="text-xs text-slate-400">Payment is due within the specified terms. NDIS services are GST-free.</p>
+              {(companySettings?.bank_name || companySettings?.bank_account_name) && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-500 font-semibold mb-1">Payment Details:</p>
+                  {companySettings?.bank_name && <p className="text-xs text-slate-500">Bank: {companySettings.bank_name}</p>}
+                  {companySettings?.bank_account_name && <p className="text-xs text-slate-500">Account: {companySettings.bank_account_name}</p>}
+                  {companySettings?.bank_bsb && <p className="text-xs text-slate-500">BSB: {companySettings.bank_bsb}</p>}
+                  {companySettings?.bank_account_number && <p className="text-xs text-slate-500">Acc #: {companySettings.bank_account_number}</p>}
+                </div>
+              )}
             </div>
             <div className="w-64">
               <div className="flex justify-between py-2 border-b border-slate-200">
@@ -164,7 +196,11 @@ const InvoiceTemplate = ({ invoice, client, onClose }) => {
           </div>
 
           <div className="border-t pt-6 text-center text-sm text-slate-500">
-            <p>Questions? Contact us at support@procare-hub.com</p>
+            {companySettings?.email ? (
+              <p>Questions? Contact us at {companySettings.email}</p>
+            ) : (
+              <p>Thank you for your business</p>
+            )}
           </div>
         </div>
       </div>
@@ -174,7 +210,7 @@ const InvoiceTemplate = ({ invoice, client, onClose }) => {
 };
 
 // Enhanced Invoice-Style Create Form
-const CreateInvoiceForm = ({ clients, onSubmit, onCancel }) => {
+const CreateInvoiceForm = ({ clients, companySettings, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     client_id: '',
     service_period_start: '',
@@ -191,6 +227,7 @@ const CreateInvoiceForm = ({ clients, onSubmit, onCancel }) => {
   const selectedClient = clients.find(c => c.id === formData.client_id);
   const subtotal = formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0);
   const total = subtotal;
+  const hasCompanyInfo = companySettings?.company_name || companySettings?.logo_url;
 
   const addLineItem = () => {
     setFormData({
@@ -231,12 +268,25 @@ const CreateInvoiceForm = ({ clients, onSubmit, onCancel }) => {
       {/* Header */}
       <div className="flex justify-between items-start mb-6 relative">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-            <img src="/procare-logo.png" alt="ProCare Hub" className="w-8 h-8 object-contain" />
-          </div>
+          {companySettings?.logo_url ? (
+            <img src={companySettings.logo_url} alt={companySettings.company_name || 'Company'} className="h-12 w-auto object-contain" />
+          ) : (
+            <div className="w-12 h-12 bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center">
+              <ImagePlus className="w-5 h-5 text-slate-400" />
+            </div>
+          )}
           <div>
-            <h2 className="text-xl font-bold text-slate-800">ProCare Hub</h2>
-            <p className="text-sm text-slate-500">NDIS Provider Services</p>
+            {hasCompanyInfo ? (
+              <>
+                <h2 className="text-xl font-bold text-slate-800">{companySettings?.company_name}</h2>
+                <p className="text-sm text-slate-500">{companySettings?.tagline || 'NDIS Provider Services'}</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-medium text-slate-400">Your Company Name</h2>
+                <p className="text-sm text-slate-400">Set up in Settings → Company</p>
+              </>
+            )}
           </div>
         </div>
         <div className="text-right">
@@ -244,6 +294,17 @@ const CreateInvoiceForm = ({ clients, onSubmit, onCancel }) => {
           <p className="text-sm text-slate-500 mt-1">New Invoice</p>
         </div>
       </div>
+
+      {/* Company Setup Hint */}
+      {!hasCompanyInfo && (
+        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
+          <Building2 className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-800">Set up your company profile</p>
+            <p className="text-amber-600">Go to Settings → Company to add your logo and business details.</p>
+          </div>
+        </div>
+      )}
 
       {/* Invoice Details Grid */}
       <div className="grid grid-cols-4 gap-4 mb-6 text-sm">
@@ -501,6 +562,7 @@ const CreateInvoiceForm = ({ clients, onSubmit, onCancel }) => {
 const Invoices = () => {
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
+  const [companySettings, setCompanySettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -510,12 +572,14 @@ const Invoices = () => {
 
   const fetchData = async () => {
     try {
-      const [invoicesRes, clientsRes] = await Promise.all([
+      const [invoicesRes, clientsRes, settingsRes] = await Promise.all([
         axios.get(`${API}/invoices`, getAuthHeader()),
         axios.get(`${API}/clients`, getAuthHeader()),
+        axios.get(`${API}/company-settings`, getAuthHeader()),
       ]);
       setInvoices(invoicesRes.data);
       setClients(clientsRes.data);
+      setCompanySettings(settingsRes.data);
     } catch (error) {
       toast.error('Failed to load data');
     }
@@ -574,7 +638,7 @@ const Invoices = () => {
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto relative" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader className="sr-only"><DialogTitle>Create Invoice</DialogTitle></DialogHeader>
-            <CreateInvoiceForm clients={clients} onSubmit={handleSubmit} onCancel={() => setIsDialogOpen(false)} />
+            <CreateInvoiceForm clients={clients} companySettings={companySettings} onSubmit={handleSubmit} onCancel={() => setIsDialogOpen(false)} />
           </DialogContent>
         </Dialog>
       </div>
@@ -654,7 +718,7 @@ const Invoices = () => {
       </Card>
 
       {showInvoicePreview && selectedInvoice && (
-        <InvoiceTemplate invoice={selectedInvoice} client={selectedInvoice.clientData} onClose={() => setShowInvoicePreview(false)} />
+        <InvoiceTemplate invoice={selectedInvoice} client={selectedInvoice.clientData} companySettings={companySettings} onClose={() => setShowInvoicePreview(false)} />
       )}
     </div>
   );

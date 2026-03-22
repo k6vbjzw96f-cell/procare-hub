@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Settings as SettingsIcon, User, Building, Bell, Lock, Upload, Calendar, Link2, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Settings as SettingsIcon, User, Building, Bell, Lock, Upload, Calendar, Link2, CheckCircle2, AlertTriangle, ExternalLink, FileText, ImagePlus } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
@@ -55,9 +55,27 @@ const Settings = () => {
     compliance_alerts: true,
   });
 
+  // Company Settings for Invoice Branding
+  const [companyData, setCompanyData] = useState({
+    company_name: '',
+    tagline: '',
+    abn: '',
+    email: '',
+    phone: '',
+    address: '',
+    website: '',
+    logo_url: '',
+    bank_name: '',
+    bank_account_name: '',
+    bank_bsb: '',
+    bank_account_number: '',
+  });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   useEffect(() => {
     fetchSettings();
     fetchCalendarStatus();
+    fetchCompanySettings();
     
     // Check for calendar connection success
     if (searchParams.get('calendar') === 'connected') {
@@ -85,6 +103,80 @@ const Settings = () => {
     } catch (error) {
       // Silent fail
     }
+  };
+
+  const fetchCompanySettings = async () => {
+    try {
+      const response = await axios.get(`${API}/company-settings`, getAuthHeader());
+      if (response.data) {
+        setCompanyData({
+          company_name: response.data.company_name || '',
+          tagline: response.data.tagline || '',
+          abn: response.data.abn || '',
+          email: response.data.email || '',
+          phone: response.data.phone || '',
+          address: response.data.address || '',
+          website: response.data.website || '',
+          logo_url: response.data.logo_url || '',
+          bank_name: response.data.bank_name || '',
+          bank_account_name: response.data.bank_account_name || '',
+          bank_bsb: response.data.bank_bsb || '',
+          bank_account_number: response.data.bank_account_number || '',
+        });
+      }
+    } catch (error) {
+      // Silent fail
+    }
+  };
+
+  const handleUpdateCompanySettings = async (e) => {
+    e.preventDefault();
+    if (user.role !== 'admin') {
+      toast.error('Only administrators can update company settings');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await axios.put(`${API}/company-settings`, companyData, getAuthHeader());
+      toast.success('Company settings saved successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save company settings');
+    }
+    setLoading(false);
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 5MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/company-settings/logo`, formData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setCompanyData({ ...companyData, logo_url: response.data.logo_url });
+      toast.success('Logo uploaded successfully');
+    } catch (error) {
+      toast.error('Failed to upload logo');
+    }
+    setUploadingLogo(false);
   };
 
   const handleConnectCalendar = async () => {
@@ -206,10 +298,14 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="profile" className="gap-2">
             <User className="w-4 h-4" />
             Profile
+          </TabsTrigger>
+          <TabsTrigger value="company" className="gap-2">
+            <FileText className="w-4 h-4" />
+            Company
           </TabsTrigger>
           <TabsTrigger value="organization" className="gap-2">
             <Building className="w-4 h-4" />
@@ -303,6 +399,200 @@ const Settings = () => {
                     {loading ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="company" className="space-y-6">
+          <Card className="border-slate-100 shadow-sm">
+            <CardHeader>
+              <CardTitle>Company Branding</CardTitle>
+              <CardDescription>
+                Customize your company logo and details that appear on invoices
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdateCompanySettings} className="space-y-6">
+                {/* Logo Upload Section */}
+                <div className="flex items-start gap-6 pb-6 border-b">
+                  <div className="flex-shrink-0">
+                    {companyData.logo_url ? (
+                      <div className="relative">
+                        <img 
+                          src={companyData.logo_url} 
+                          alt="Company Logo" 
+                          className="w-32 h-32 object-contain border rounded-lg bg-slate-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCompanyData({ ...companyData, logo_url: '' })}
+                          className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-32 h-32 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center bg-slate-50">
+                        <ImagePlus className="w-8 h-8 text-slate-400 mb-2" />
+                        <span className="text-xs text-slate-500">No logo</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Company Logo</Label>
+                    <p className="text-sm text-slate-500 mb-3">
+                      Upload your company logo to display on invoices. Recommended size: 200x200px
+                    </p>
+                    <label className="cursor-pointer">
+                      <Button variant="outline" type="button" disabled={uploadingLogo} asChild>
+                        <span>
+                          <Upload className="w-4 h-4 mr-2" />
+                          {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+                        </span>
+                      </Button>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                        disabled={uploadingLogo}
+                      />
+                    </label>
+                    <p className="text-xs text-slate-400 mt-2">PNG, JPG or JPEG. Max 5MB.</p>
+                  </div>
+                </div>
+
+                {/* Company Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="company_name">Company Name *</Label>
+                    <Input
+                      id="company_name"
+                      value={companyData.company_name}
+                      onChange={(e) => setCompanyData({ ...companyData, company_name: e.target.value })}
+                      placeholder="Your Company Name"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="tagline">Tagline / Description</Label>
+                    <Input
+                      id="tagline"
+                      value={companyData.tagline}
+                      onChange={(e) => setCompanyData({ ...companyData, tagline: e.target.value })}
+                      placeholder="e.g., NDIS Provider Services"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company_abn">ABN</Label>
+                    <Input
+                      id="company_abn"
+                      value={companyData.abn}
+                      onChange={(e) => setCompanyData({ ...companyData, abn: e.target.value })}
+                      placeholder="12 345 678 901"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company_phone">Phone</Label>
+                    <Input
+                      id="company_phone"
+                      value={companyData.phone}
+                      onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
+                      placeholder="+61 4XX XXX XXX"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company_email">Email</Label>
+                    <Input
+                      id="company_email"
+                      type="email"
+                      value={companyData.email}
+                      onChange={(e) => setCompanyData({ ...companyData, email: e.target.value })}
+                      placeholder="accounts@company.com"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company_website">Website</Label>
+                    <Input
+                      id="company_website"
+                      value={companyData.website}
+                      onChange={(e) => setCompanyData({ ...companyData, website: e.target.value })}
+                      placeholder="www.company.com"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="company_address">Address</Label>
+                    <Input
+                      id="company_address"
+                      value={companyData.address}
+                      onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
+                      placeholder="123 Main St, City, State 1234"
+                      disabled={user.role !== 'admin'}
+                    />
+                  </div>
+                </div>
+
+                {/* Bank Details */}
+                <Separator />
+                <div>
+                  <Label className="text-base font-semibold mb-4 block">Payment Details (shown on invoices)</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="bank_name">Bank Name</Label>
+                      <Input
+                        id="bank_name"
+                        value={companyData.bank_name}
+                        onChange={(e) => setCompanyData({ ...companyData, bank_name: e.target.value })}
+                        placeholder="Commonwealth Bank"
+                        disabled={user.role !== 'admin'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bank_account_name">Account Name</Label>
+                      <Input
+                        id="bank_account_name"
+                        value={companyData.bank_account_name}
+                        onChange={(e) => setCompanyData({ ...companyData, bank_account_name: e.target.value })}
+                        placeholder="Company Pty Ltd"
+                        disabled={user.role !== 'admin'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bank_bsb">BSB</Label>
+                      <Input
+                        id="bank_bsb"
+                        value={companyData.bank_bsb}
+                        onChange={(e) => setCompanyData({ ...companyData, bank_bsb: e.target.value })}
+                        placeholder="XXX-XXX"
+                        disabled={user.role !== 'admin'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bank_account_number">Account Number</Label>
+                      <Input
+                        id="bank_account_number"
+                        value={companyData.bank_account_number}
+                        onChange={(e) => setCompanyData({ ...companyData, bank_account_number: e.target.value })}
+                        placeholder="XXXX XXXX"
+                        disabled={user.role !== 'admin'}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {user.role === 'admin' && (
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={loading}>
+                      {loading ? 'Saving...' : 'Save Company Settings'}
+                    </Button>
+                  </div>
+                )}
               </form>
             </CardContent>
           </Card>

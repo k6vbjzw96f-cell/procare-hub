@@ -347,6 +347,37 @@ class Notification(BaseModel):
     action_url: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# Company Settings Model
+class CompanySettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    company_name: Optional[str] = None
+    tagline: Optional[str] = None
+    abn: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    logo_url: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_name: Optional[str] = None
+    bank_bsb: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CompanySettingsUpdate(BaseModel):
+    company_name: Optional[str] = None
+    tagline: Optional[str] = None
+    abn: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_name: Optional[str] = None
+    bank_bsb: Optional[str] = None
+    bank_account_number: Optional[str] = None
+
 class DashboardStats(BaseModel):
     total_clients: int
     active_clients: int
@@ -4469,6 +4500,84 @@ async def disconnect_xero():
     """Disconnect Xero integration"""
     await db.xero_connections.delete_one({"type": "xero"})
     return {"message": "Xero disconnected successfully"}
+
+# ============== Company Settings ==============
+
+@api_router.get("/company-settings")
+async def get_company_settings():
+    """Get company settings"""
+    settings = await db.company_settings.find_one({"type": "company"}, {"_id": 0})
+    if not settings:
+        # Return empty settings with defaults
+        return {
+            "id": None,
+            "company_name": None,
+            "tagline": None,
+            "abn": None,
+            "email": None,
+            "phone": None,
+            "address": None,
+            "website": None,
+            "logo_url": None,
+            "bank_name": None,
+            "bank_account_name": None,
+            "bank_bsb": None,
+            "bank_account_number": None
+        }
+    return settings
+
+@api_router.put("/company-settings")
+async def update_company_settings(settings: CompanySettingsUpdate):
+    """Update company settings"""
+    existing = await db.company_settings.find_one({"type": "company"})
+    
+    update_data = {k: v for k, v in settings.model_dump().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    if existing:
+        await db.company_settings.update_one(
+            {"type": "company"},
+            {"$set": update_data}
+        )
+    else:
+        update_data["id"] = str(uuid.uuid4())
+        update_data["type"] = "company"
+        await db.company_settings.insert_one(update_data)
+    
+    return await db.company_settings.find_one({"type": "company"}, {"_id": 0})
+
+@api_router.post("/company-settings/logo")
+async def upload_company_logo(file: UploadFile = File(...)):
+    """Upload company logo"""
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    
+    ext = file.filename.split(".")[-1] if "." in file.filename else "png"
+    path = f"{APP_NAME}/company/logo.{ext}"
+    
+    result = put_object(path, content, file.content_type)
+    logo_url = result.get("url", result.get("public_url", ""))
+    
+    # Update company settings with logo URL
+    existing = await db.company_settings.find_one({"type": "company"})
+    if existing:
+        await db.company_settings.update_one(
+            {"type": "company"},
+            {"$set": {"logo_url": logo_url, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    else:
+        await db.company_settings.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "company",
+            "logo_url": logo_url,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {"logo_url": logo_url}
 
 # Startup event
 @app.on_event("startup")
