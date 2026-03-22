@@ -39,7 +39,11 @@ import {
   UserCog,
   Briefcase,
   ClipboardList,
-  Plug
+  Plug,
+  Heart,
+  Award,
+  Target,
+  Users2
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -286,6 +290,7 @@ const LandingPage = () => {
               <a href="#features" className="text-slate-600 hover:text-primary transition-colors">Features</a>
               <a href="#pricing" className="text-slate-600 hover:text-primary transition-colors">Pricing</a>
               <a href="#testimonials" className="text-slate-600 hover:text-primary transition-colors">Testimonials</a>
+              <a href="#about" className="text-slate-600 hover:text-primary transition-colors">About</a>
               <Button variant="ghost" onClick={() => setShowDemoModal(true)}>Request Demo</Button>
               <Button onClick={() => navigate('/login')}>Sign In</Button>
             </div>
@@ -567,6 +572,92 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* About Us Section */}
+      <section id="about" className="py-20 sm:py-28 bg-gradient-to-b from-white to-slate-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left side - Content */}
+            <div>
+              <Badge className="mb-4 bg-primary/10 text-primary border-0">
+                About ProCare Hub
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-6">
+                Built by NDIS Experts,{' '}
+                <span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">
+                  For NDIS Providers
+                </span>
+              </h2>
+              <p className="text-lg text-slate-600 mb-6 leading-relaxed">
+                ProCare Hub was founded in 2020 by a team of disability sector professionals and software engineers 
+                who saw firsthand the challenges NDIS providers face with outdated, fragmented systems.
+              </p>
+              <p className="text-slate-600 mb-8 leading-relaxed">
+                Our mission is simple: empower NDIS providers with technology that actually works. We've built 
+                ProCare Hub from the ground up specifically for the Australian disability sector, with deep 
+                understanding of NDIS compliance requirements, award interpretation complexities, and the 
+                day-to-day realities of delivering quality support services.
+              </p>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-6 mb-8">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-primary">500+</div>
+                  <div className="text-sm text-slate-500">Providers</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-primary">50K+</div>
+                  <div className="text-sm text-slate-500">Participants</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-primary">99.9%</div>
+                  <div className="text-sm text-slate-500">Uptime</div>
+                </div>
+              </div>
+
+              <Button size="lg" onClick={() => setShowDemoModal(true)}>
+                Get in Touch
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+
+            {/* Right side - Values Cards */}
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center mb-4 shadow-lg shadow-rose-500/25">
+                  <Heart className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">Purpose-Driven</h3>
+                <p className="text-sm text-slate-600">We're passionate about improving outcomes for people with disabilities through better technology.</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-4 shadow-lg shadow-amber-500/25">
+                  <Award className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">Australian Made</h3>
+                <p className="text-sm text-slate-600">100% Australian owned and operated, with local support teams who understand the NDIS.</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/25">
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">Innovation First</h3>
+                <p className="text-sm text-slate-600">Continuously evolving our platform based on provider feedback and industry changes.</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/25">
+                  <Users2 className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">Partner Success</h3>
+                <p className="text-sm text-slate-600">Your success is our success. We provide dedicated onboarding and ongoing support.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-16 sm:py-24 bg-primary">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -612,7 +703,7 @@ const LandingPage = () => {
             <div>
               <h4 className="text-white font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="#about" className="hover:text-white transition-colors">About Us</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
