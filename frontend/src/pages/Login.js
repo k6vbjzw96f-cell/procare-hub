@@ -768,16 +768,16 @@ const Login = ({ onLogin }) => {
 
                 <Button
                   type="submit"
-                  className="w-full h-11 text-base font-medium"
+                  className="w-full h-11 text-base font-medium btn-animated transition-all duration-200"
                   disabled={loading}
                   data-testid="login-submit-button"
                   aria-busy={loading}
                 >
                   {loading ? (
-                    <>
-                      <span className="animate-spin mr-2">⏳</span>
-                      Logging in...
-                    </>
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span className="animate-pulse">Signing in...</span>
+                    </span>
                   ) : (
                     'Login'
                   )}

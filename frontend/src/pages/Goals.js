@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Target, User, TrendingUp, Calendar, Trophy, Flag } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Plus, Target, User, TrendingUp, Calendar, Trophy, Flag, ChevronDown, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -24,6 +25,12 @@ const Goals = () => {
   const [selectedClient, setSelectedClient] = useState('');
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    short_term: true,
+    long_term: true,
+    lifestyle: true,
+  });
   const [formData, setFormData] = useState({
     client_id: '',
     goal_type: 'short_term',
@@ -34,6 +41,7 @@ const Goals = () => {
 
   useEffect(() => {
     fetchClients();
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -239,34 +247,34 @@ const Goals = () => {
       </Card>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-slate-100 shadow-sm bg-gradient-to-br from-blue-50 to-white">
+      <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-all duration-500 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <Card className="border-slate-100 shadow-sm bg-gradient-to-br from-blue-50 to-white widget-stagger card-animated" style={{ animationDelay: '100ms' }}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600 font-medium">Active Goals</p>
                 <p className="text-3xl font-bold text-blue-700">{activeGoals.length}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center transition-transform duration-300 hover:scale-110">
                 <Target className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-slate-100 shadow-sm bg-gradient-to-br from-emerald-50 to-white">
+        <Card className="border-slate-100 shadow-sm bg-gradient-to-br from-emerald-50 to-white widget-stagger card-animated" style={{ animationDelay: '200ms' }}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600 font-medium">Achieved</p>
                 <p className="text-3xl font-bold text-emerald-700">{achievedGoals.length}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center transition-transform duration-300 hover:scale-110">
                 <Trophy className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-slate-100 shadow-sm bg-gradient-to-br from-purple-50 to-white">
+        <Card className="border-slate-100 shadow-sm bg-gradient-to-br from-purple-50 to-white widget-stagger card-animated" style={{ animationDelay: '300ms' }}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -277,7 +285,7 @@ const Goals = () => {
                     : 0}%
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center transition-transform duration-300 hover:scale-110">
                 <TrendingUp className="w-6 h-6 text-purple-600" />
               </div>
             </div>
@@ -286,7 +294,7 @@ const Goals = () => {
       </div>
 
       {/* Goals List */}
-      <Card className="border-slate-100 shadow-sm">
+      <Card className={`border-slate-100 shadow-sm transition-all duration-500 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Target className="w-5 h-5 text-primary" />
@@ -304,13 +312,17 @@ const Goals = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {goals.map((goal) => {
+              {goals.map((goal, index) => {
                 const typeConfig = getGoalTypeConfig(goal.goal_type);
                 const statusConfig = getStatusConfig(goal.status);
                 const TypeIcon = typeConfig.icon;
                 
                 return (
-                  <div key={goal.id} className="border border-slate-100 rounded-lg p-5 hover:shadow-md transition-shadow">
+                  <div 
+                    key={goal.id} 
+                    className="border border-slate-100 rounded-lg p-5 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 card-animated"
+                    style={{ animation: `fadeInUp 0.4s ease-out ${index * 0.1}s both` }}
+                  >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">

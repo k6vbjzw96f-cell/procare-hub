@@ -74,12 +74,94 @@
   }
 }
 
+/* Page Load Animation - 200ms fade-in */
+@keyframes pageLoad {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Notification Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+/* Expand/Collapse Animation */
+@keyframes expandIn {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: scaleY(0.95);
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes collapseOut {
+  from {
+    opacity: 1;
+    max-height: 1000px;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+  }
+}
+
+/* Spinner Animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulse Animation for notifications */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Stagger Animation Classes */
+.animate-stagger-1 { animation-delay: 0ms; }
+.animate-stagger-2 { animation-delay: 100ms; }
+.animate-stagger-3 { animation-delay: 200ms; }
+.animate-stagger-4 { animation-delay: 300ms; }
+.animate-stagger-5 { animation-delay: 400ms; }
+.animate-stagger-6 { animation-delay: 500ms; }
+
+/* Animation Classes */
 .animate-fadeInUp {
   animation: fadeInUp 0.4s ease-out forwards;
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.2s ease-out forwards;
 }
 
 .animate-slideInFromRight {
@@ -92,4 +174,86 @@
 
 .animate-bounce-subtle {
   animation: bounce-subtle 2s infinite;
+}
+
+.animate-page-load {
+  animation: pageLoad 0.2s ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out forwards;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.animate-expand {
+  animation: expandIn 0.3s ease-out forwards;
+  transform-origin: top;
+}
+
+.animate-collapse {
+  animation: collapseOut 0.2s ease-in forwards;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Button Hover - gentle color shift + scale 1.02x */
+.btn-animated {
+  transition: all 0.2s ease-out;
+}
+
+.btn-animated:hover {
+  transform: scale(1.02);
+  filter: brightness(1.05);
+}
+
+.btn-animated:active {
+  transform: scale(0.98);
+}
+
+/* Card Hover Animations */
+.card-animated {
+  transition: all 0.3s ease-out;
+}
+
+.card-animated:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+}
+
+/* Widget stagger on dashboard */
+.widget-stagger {
+  opacity: 0;
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.widget-stagger:nth-child(1) { animation-delay: 0ms; }
+.widget-stagger:nth-child(2) { animation-delay: 100ms; }
+.widget-stagger:nth-child(3) { animation-delay: 200ms; }
+.widget-stagger:nth-child(4) { animation-delay: 300ms; }
+.widget-stagger:nth-child(5) { animation-delay: 400ms; }
+.widget-stagger:nth-child(6) { animation-delay: 500ms; }
+
+/* Expandable Section */
+.section-expandable {
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.section-expandable.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.section-expandable.expanded {
+  max-height: 2000px;
+  opacity: 1;
 }

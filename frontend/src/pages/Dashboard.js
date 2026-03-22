@@ -14,9 +14,12 @@ const getAuthHeader = () => ({
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     fetchStats();
+    // Trigger mount animation after data loads
+    setTimeout(() => setMounted(true), 100);
   }, []);
 
   const fetchStats = async () => {
@@ -77,21 +80,30 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-500">Loading dashboard...</div>
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-slate-500">Loading dashboard...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8" data-testid="dashboard-page">
-      <div>
+    <div className={`space-y-8 transition-opacity duration-200 ${mounted ? 'opacity-100' : 'opacity-0'}`} data-testid="dashboard-page">
+      <div className={`transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <h1 className="text-4xl font-manrope font-bold text-primary-900 mb-2">Dashboard</h1>
         <p className="text-slate-600">Overview of your NDIS provider operations</p>
       </div>
 
+      {/* Stats Cards with Stagger Animation */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {statCards.map((stat, index) => (
-          <Card key={index} className="stat-card border-slate-100 shadow-sm" data-testid={`stat-card-${stat.title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <Card 
+            key={index} 
+            className={`stat-card border-slate-100 shadow-sm widget-stagger card-animated`}
+            style={{ animationDelay: `${index * 100}ms` }}
+            data-testid={`stat-card-${stat.title.toLowerCase().replace(/\s+/g, '-')}`}
+          >
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
@@ -103,7 +115,7 @@ const Dashboard = () => {
                   </p>
                   <p className="text-sm text-slate-500">{stat.subtitle}</p>
                 </div>
-                <div className={`p-3 rounded-xl ${stat.color}`}>
+                <div className={`p-3 rounded-xl ${stat.color} transition-transform duration-300 hover:scale-110`}>
                   <stat.icon className="w-6 h-6" strokeWidth={1.5} />
                 </div>
               </div>
@@ -113,7 +125,7 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-slate-100 shadow-sm">
+        <Card className="border-slate-100 shadow-sm widget-stagger" style={{ animationDelay: '600ms' }}>
           <CardHeader>
             <CardTitle className="text-xl font-manrope">Quick Actions</CardTitle>
           </CardHeader>
@@ -145,7 +157,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-100 shadow-sm">
+        <Card className="border-slate-100 shadow-sm widget-stagger" style={{ animationDelay: '700ms' }}>
           <CardHeader>
             <CardTitle className="text-xl font-manrope">Recent Activity</CardTitle>
           </CardHeader>

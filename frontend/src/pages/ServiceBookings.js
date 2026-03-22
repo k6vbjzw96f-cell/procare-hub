@@ -108,7 +108,13 @@ const ServiceBookings = () => {
     setSubmitting(true);
     try {
       await axios.post(`${API}/service-bookings`, formData, getAuthHeader());
-      toast.success('Service booking request submitted');
+      toast.success(
+        <div className="flex items-center gap-2">
+          <span className="text-emerald-500">✓</span>
+          <span>Service request submitted successfully!</span>
+        </div>,
+        { duration: 4000 }
+      );
       setShowCreateModal(false);
       resetForm();
       fetchData();
@@ -411,10 +417,19 @@ const ServiceBookings = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                Submit Request
+              <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="btn-animated">Cancel</Button>
+              <Button type="submit" disabled={submitting} className="btn-animated min-w-[140px]">
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="animate-pulse">Saving...</span>
+                  </span>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Submit Request
+                  </>
+                )}
               </Button>
             </div>
           </form>
