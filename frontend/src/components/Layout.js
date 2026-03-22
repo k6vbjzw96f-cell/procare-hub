@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2, Settings, CalendarCheck, Pill, Target, MessageSquare, CreditCard, CalendarDays, ClipboardList, FileSignature, Users2, Briefcase, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2, Settings, CalendarCheck, Pill, Target, MessageSquare, CreditCard, CalendarDays, ClipboardList, FileSignature, Users2, Briefcase, DollarSign, NotebookPen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
@@ -40,6 +40,7 @@ const Layout = ({ children, user, onLogout }) => {
     { name: 'Team Availability', href: '/team-availability', icon: Users2, roles: ['admin', 'coordinator'] },
     { name: 'HR', href: '/hr', icon: Briefcase, roles: ['admin', 'coordinator'] },
     { name: 'Rostering', href: '/rostering', icon: Calendar, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Case Notes', href: '/case-notes', icon: NotebookPen, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Hour Logging', href: '/hours', icon: Clock, roles: ['support_worker'] },
     { name: 'Leave', href: '/leave', icon: CalendarCheck, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Medication', href: '/medication', icon: Pill, roles: ['admin', 'coordinator', 'support_worker'] },

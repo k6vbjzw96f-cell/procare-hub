@@ -332,6 +332,60 @@ class AutoAssignRequest(BaseModel):
     service_type: str
     notes: Optional[str] = None
 
+# Case Notes Models
+class CaseNote(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    note_type: str  # shift_note, incident_report, missed_medication
+    client_id: str
+    client_name: str
+    staff_id: str
+    staff_name: str
+    shift_id: Optional[str] = None
+    shift_date: Optional[str] = None
+    # Common fields
+    title: str
+    content: str
+    # Incident-specific fields
+    incident_date: Optional[str] = None
+    incident_time: Optional[str] = None
+    incident_location: Optional[str] = None
+    incident_severity: Optional[str] = None  # low, medium, high, critical
+    witnesses: Optional[str] = None
+    actions_taken: Optional[str] = None
+    follow_up_required: bool = False
+    # Missed medication fields
+    medication_name: Optional[str] = None
+    scheduled_time: Optional[str] = None
+    reason_missed: Optional[str] = None
+    # Status and metadata
+    status: str = "draft"  # draft, submitted, reviewed, closed
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    attachments: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+class CaseNoteCreate(BaseModel):
+    note_type: str
+    client_id: str
+    shift_id: Optional[str] = None
+    shift_date: Optional[str] = None
+    title: str
+    content: str
+    # Incident-specific
+    incident_date: Optional[str] = None
+    incident_time: Optional[str] = None
+    incident_location: Optional[str] = None
+    incident_severity: Optional[str] = None
+    witnesses: Optional[str] = None
+    actions_taken: Optional[str] = None
+    follow_up_required: bool = False
+    # Missed medication
+    medication_name: Optional[str] = None
+    scheduled_time: Optional[str] = None
+    reason_missed: Optional[str] = None
+
 class HourLog(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -2064,6 +2118,182 @@ async def auto_assign_and_create(request: AutoAssignRequest, current_user: User 
     }
 
 # ==================== END SCHEDULING AUTOMATION ====================
+
+# ==================== CASE NOTES ====================
+
+@api_router.post("/case-notes", response_model=CaseNote)
+async def create_case_note(note_data: CaseNoteCreate, current_user: User = Depends(get_current_user)):
+    """Create a new case note (shift note, incident report, or missed medication)"""
+    client = await db.clients.find_one({"id": note_data.client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Get staff info
+    staff = await db.staff.find_one({"email": current_user.email}, {"_id": 0})
+    staff_name = staff['full_name'] if staff else current_user.full_name
+    staff_id = staff['id'] if staff else current_user.id
+    
+    note_dict = note_data.model_dump()
+    note_dict['client_name'] = client['full_name']
+    note_dict['staff_id'] = staff_id
+    note_dict['staff_name'] = staff_name
+    note_dict['status'] = 'submitted'
+    
+    note = CaseNote(**note_dict)
+    doc = note.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    if doc.get('updated_at'):
+        doc['updated_at'] = doc['updated_at'].isoformat()
+    await db.case_notes.insert_one(doc)
+    
+    # Notify coordinators for incidents
+    if note_data.note_type == 'incident_report':
+        coordinators = await db.users.find({"role": {"$in": ["admin", "coordinator"]}}, {"_id": 0}).to_list(50)
+        for coord in coordinators:
+            await create_notification(
+                coord['id'],
+                f"New Incident Report: {note_data.title}",
+                f"Incident reported for {client['full_name']} by {staff_name}. Severity: {note_data.incident_severity or 'Not specified'}",
+                "incident",
+                "/case-notes",
+                should_send_email=True
+            )
+    
+    # Notify for missed medication
+    if note_data.note_type == 'missed_medication':
+        coordinators = await db.users.find({"role": {"$in": ["admin", "coordinator"]}}, {"_id": 0}).to_list(50)
+        for coord in coordinators:
+            await create_notification(
+                coord['id'],
+                f"Missed Medication Report",
+                f"{note_data.medication_name} missed for {client['full_name']}. Reason: {note_data.reason_missed or 'Not specified'}",
+                "medication",
+                "/case-notes",
+                should_send_email=True
+            )
+    
+    return note
+
+@api_router.get("/case-notes", response_model=List[CaseNote])
+async def get_case_notes(
+    note_type: Optional[str] = None,
+    client_id: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Get case notes with optional filters"""
+    query = {}
+    
+    # Support workers see only their notes, admins/coordinators see all
+    if current_user.role == "support_worker":
+        staff = await db.staff.find_one({"email": current_user.email}, {"_id": 0})
+        if staff:
+            query["staff_id"] = staff['id']
+    
+    if note_type:
+        query["note_type"] = note_type
+    if client_id:
+        query["client_id"] = client_id
+    if status:
+        query["status"] = status
+    
+    notes = await db.case_notes.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    for note in notes:
+        if isinstance(note.get('created_at'), str):
+            note['created_at'] = datetime.fromisoformat(note['created_at'])
+        if note.get('updated_at') and isinstance(note['updated_at'], str):
+            note['updated_at'] = datetime.fromisoformat(note['updated_at'])
+    return notes
+
+@api_router.get("/case-notes/{note_id}", response_model=CaseNote)
+async def get_case_note(note_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific case note"""
+    note = await db.case_notes.find_one({"id": note_id}, {"_id": 0})
+    if not note:
+        raise HTTPException(status_code=404, detail="Case note not found")
+    
+    if isinstance(note.get('created_at'), str):
+        note['created_at'] = datetime.fromisoformat(note['created_at'])
+    if note.get('updated_at') and isinstance(note['updated_at'], str):
+        note['updated_at'] = datetime.fromisoformat(note['updated_at'])
+    
+    return CaseNote(**note)
+
+@api_router.put("/case-notes/{note_id}")
+async def update_case_note(note_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
+    """Update a case note"""
+    note = await db.case_notes.find_one({"id": note_id}, {"_id": 0})
+    if not note:
+        raise HTTPException(status_code=404, detail="Case note not found")
+    
+    # Support workers can only update their own notes that are not yet reviewed
+    if current_user.role == "support_worker":
+        staff = await db.staff.find_one({"email": current_user.email}, {"_id": 0})
+        if staff and note['staff_id'] != staff['id']:
+            raise HTTPException(status_code=403, detail="Cannot update other's notes")
+        if note['status'] in ['reviewed', 'closed']:
+            raise HTTPException(status_code=403, detail="Cannot update reviewed/closed notes")
+    
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    await db.case_notes.update_one({"id": note_id}, {"$set": update_data})
+    
+    return {"message": "Case note updated"}
+
+@api_router.put("/case-notes/{note_id}/review")
+async def review_case_note(note_id: str, current_user: User = Depends(get_current_user)):
+    """Mark a case note as reviewed (admin/coordinator only)"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    note = await db.case_notes.find_one({"id": note_id}, {"_id": 0})
+    if not note:
+        raise HTTPException(status_code=404, detail="Case note not found")
+    
+    await db.case_notes.update_one({"id": note_id}, {"$set": {
+        "status": "reviewed",
+        "reviewed_by": current_user.full_name,
+        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }})
+    
+    return {"message": "Case note marked as reviewed"}
+
+@api_router.delete("/case-notes/{note_id}")
+async def delete_case_note(note_id: str, current_user: User = Depends(get_current_user)):
+    """Delete a case note (admin only)"""
+    check_permission(current_user, ["admin"])
+    
+    result = await db.case_notes.delete_one({"id": note_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Case note not found")
+    
+    return {"message": "Case note deleted"}
+
+@api_router.get("/case-notes/stats/summary")
+async def get_case_notes_summary(current_user: User = Depends(get_current_user)):
+    """Get summary statistics for case notes"""
+    query = {}
+    if current_user.role == "support_worker":
+        staff = await db.staff.find_one({"email": current_user.email}, {"_id": 0})
+        if staff:
+            query["staff_id"] = staff['id']
+    
+    all_notes = await db.case_notes.find(query, {"_id": 0}).to_list(1000)
+    
+    shift_notes = [n for n in all_notes if n['note_type'] == 'shift_note']
+    incidents = [n for n in all_notes if n['note_type'] == 'incident_report']
+    missed_meds = [n for n in all_notes if n['note_type'] == 'missed_medication']
+    pending_review = [n for n in all_notes if n['status'] == 'submitted']
+    
+    return {
+        "total_notes": len(all_notes),
+        "shift_notes": len(shift_notes),
+        "incident_reports": len(incidents),
+        "missed_medications": len(missed_meds),
+        "pending_review": len(pending_review),
+        "high_severity_incidents": len([i for i in incidents if i.get('incident_severity') in ['high', 'critical']])
+    }
+
+# ==================== END CASE NOTES ====================
 
 # Hour Logging Routes
 @api_router.post("/hours", response_model=HourLog)
