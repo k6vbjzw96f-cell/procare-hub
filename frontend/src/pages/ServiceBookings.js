@@ -56,6 +56,12 @@ const ServiceBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Animation on mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [formData, setFormData] = useState({
     client_id: '',
@@ -193,53 +199,53 @@ const ServiceBookings = () => {
   }
 
   return (
-    <div className="space-y-6" data-testid="service-bookings-page">
+    <div className={`space-y-6 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} data-testid="service-bookings-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Service Bookings</h1>
           <p className="text-slate-500 mt-1">Request and manage support services</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="w-4 h-4 mr-2" />
+        <Button onClick={() => setShowCreateModal(true)} className="group transition-all duration-300 hover:scale-105 hover:shadow-lg">
+          <Plus className="w-4 h-4 mr-2 transition-transform group-hover:rotate-90" />
           Request Service
         </Button>
       </div>
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <Card className="border-slate-200">
+        <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 transition-all duration-500 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <Card className="border-slate-200 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
               <p className="text-xs text-slate-500">Total Requests</p>
             </CardContent>
           </Card>
-          <Card className="border-amber-100 bg-amber-50/50">
+          <Card className="border-amber-100 bg-amber-50/50 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold text-amber-700">{stats.requested}</p>
               <p className="text-xs text-slate-500">Pending Review</p>
             </CardContent>
           </Card>
-          <Card className="border-blue-100 bg-blue-50/50">
+          <Card className="border-blue-100 bg-blue-50/50 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold text-blue-700">{stats.approved}</p>
               <p className="text-xs text-slate-500">Approved</p>
             </CardContent>
           </Card>
-          <Card className="border-emerald-100 bg-emerald-50/50">
+          <Card className="border-emerald-100 bg-emerald-50/50 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold text-emerald-700">{stats.scheduled}</p>
               <p className="text-xs text-slate-500">Scheduled</p>
             </CardContent>
           </Card>
-          <Card className="border-slate-200">
+          <Card className="border-slate-200 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold text-slate-600">{stats.completed}</p>
               <p className="text-xs text-slate-500">Completed</p>
             </CardContent>
           </Card>
-          <Card className="border-red-100 bg-red-50/50">
+          <Card className="border-red-100 bg-red-50/50 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold text-red-700">{stats.cancelled}</p>
               <p className="text-xs text-slate-500">Cancelled</p>
@@ -249,29 +255,29 @@ const ServiceBookings = () => {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className={`flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between transition-all duration-500 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="requested">Pending</TabsTrigger>
-            <TabsTrigger value="approved">Approved</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsTrigger value="all" className="transition-all duration-200">All</TabsTrigger>
+            <TabsTrigger value="requested" className="transition-all duration-200">Pending</TabsTrigger>
+            <TabsTrigger value="approved" className="transition-all duration-200">Approved</TabsTrigger>
+            <TabsTrigger value="scheduled" className="transition-all duration-200">Scheduled</TabsTrigger>
+            <TabsTrigger value="completed" className="transition-all duration-200">Completed</TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <div className="relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-primary" />
           <Input
             placeholder="Search bookings..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-[250px]"
+            className="pl-10 w-[250px] transition-all duration-300 focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
       {/* Bookings Table */}
-      <Card>
+      <Card className={`transition-all duration-500 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -293,8 +299,13 @@ const ServiceBookings = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredBookings.map((booking) => (
-                  <TableRow key={booking.id} className="cursor-pointer hover:bg-slate-50" onClick={() => { setSelectedBooking(booking); setShowViewModal(true); }}>
+                filteredBookings.map((booking, index) => (
+                  <TableRow 
+                    key={booking.id} 
+                    className="cursor-pointer hover:bg-slate-50 transition-all duration-200" 
+                    style={{ animation: `fadeInUp 0.3s ease-out ${index * 0.05}s both` }}
+                    onClick={() => { setSelectedBooking(booking); setShowViewModal(true); }}
+                  >
                     <TableCell className="font-medium">{booking.client_name}</TableCell>
                     <TableCell>{booking.service_type}</TableCell>
                     <TableCell>

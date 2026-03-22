@@ -50,6 +50,11 @@ const Resources = () => {
   const [selectedResource, setSelectedResource] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [userRole, setUserRole] = useState('support_worker');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -188,16 +193,16 @@ const Resources = () => {
   }
 
   return (
-    <div className="space-y-6" data-testid="resources-page">
+    <div className={`space-y-6 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} data-testid="resources-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Resource Library</h1>
           <p className="text-slate-500 mt-1">NDIS guides, fact sheets, videos, and helpful resources</p>
         </div>
         {canEdit && (
-          <Button onClick={() => { resetForm(); setShowCreateModal(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={() => { resetForm(); setShowCreateModal(true); }} className="group transition-all duration-300 hover:scale-105 hover:shadow-lg">
+            <Plus className="w-4 h-4 mr-2 transition-transform group-hover:rotate-90" />
             Add Resource
           </Button>
         )}
@@ -205,20 +210,25 @@ const Resources = () => {
 
       {/* Featured Resources */}
       {featuredResources.length > 0 && (
-        <div className="space-y-3">
+        <div className={`space-y-3 transition-all duration-500 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Star className="w-5 h-5 text-amber-500" />
+            <Star className="w-5 h-5 text-amber-500 animate-pulse" />
             Featured Resources
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {featuredResources.slice(0, 3).map((resource) => {
+            {featuredResources.slice(0, 3).map((resource, index) => {
               const catInfo = getCategoryInfo(resource.category);
               const CatIcon = catInfo.icon;
               return (
-                <Card key={resource.id} className="border-amber-100 bg-gradient-to-br from-amber-50/50 to-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => viewResource(resource)}>
+                <Card 
+                  key={resource.id} 
+                  className="border-amber-100 bg-gradient-to-br from-amber-50/50 to-white cursor-pointer hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300" 
+                  style={{ animationDelay: `${index * 100}ms` }}
+                  onClick={() => viewResource(resource)}
+                >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
-                      <div className={`p-2 rounded-lg ${catInfo.color}`}>
+                      <div className={`p-2 rounded-lg ${catInfo.color} transition-transform duration-300 group-hover:scale-110`}>
                         <CatIcon className="w-5 h-5" />
                       </div>
                       <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
@@ -236,12 +246,13 @@ const Resources = () => {
       )}
 
       {/* Category Filters */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+      <div className={`flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between transition-all duration-500 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="flex flex-wrap gap-2">
           <Button
             variant={activeCategory === 'all' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setActiveCategory('all')}
+            className="transition-all duration-200 hover:scale-105"
           >
             <FolderOpen className="w-4 h-4 mr-1" />
             All ({resources.length})
@@ -252,41 +263,46 @@ const Resources = () => {
               variant={activeCategory === cat.value ? 'default' : 'outline'}
               size="sm"
               onClick={() => setActiveCategory(cat.value)}
-              className={activeCategory === cat.value ? '' : cat.color.replace('text-', 'hover:text-')}
+              className={`transition-all duration-200 hover:scale-105 ${activeCategory === cat.value ? '' : cat.color.replace('text-', 'hover:text-')}`}
             >
               <cat.icon className="w-4 h-4 mr-1" />
               {cat.label} ({categories[cat.value] || 0})
             </Button>
           ))}
         </div>
-        <div className="relative w-full lg:w-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <div className="relative w-full lg:w-auto group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-primary" />
           <Input
             placeholder="Search resources..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full lg:w-[300px]"
+            className="pl-10 w-full lg:w-[300px] transition-all duration-300 focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
       {/* Resources Grid */}
       {filteredResources.length === 0 ? (
-        <Card className="p-12 text-center">
-          <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <Card className={`p-12 text-center transition-all duration-500 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-4 animate-bounce" />
           <h3 className="text-lg font-medium text-slate-600">No resources found</h3>
           <p className="text-slate-500 mt-1">Try adjusting your search or filters</p>
         </Card>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredResources.map((resource) => {
+        <div className={`grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-all duration-500 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          {filteredResources.map((resource, index) => {
             const catInfo = getCategoryInfo(resource.category);
             const CatIcon = catInfo.icon;
             return (
-              <Card key={resource.id} className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/30" onClick={() => viewResource(resource)}>
+              <Card 
+                key={resource.id} 
+                className="cursor-pointer hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 hover:border-primary/30 group" 
+                style={{ animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both` }}
+                onClick={() => viewResource(resource)}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <div className={`p-2 rounded-lg ${catInfo.color}`}>
+                    <div className={`p-2 rounded-lg ${catInfo.color} transition-all duration-300 group-hover:scale-110 group-hover:rotate-3`}>
                       <CatIcon className="w-5 h-5" />
                     </div>
                     <div className="flex items-center gap-1 text-xs text-slate-400">
@@ -294,7 +310,7 @@ const Resources = () => {
                       {resource.view_count || 0}
                     </div>
                   </div>
-                  <CardTitle className="text-base mt-2 line-clamp-2">{resource.title}</CardTitle>
+                  <CardTitle className="text-base mt-2 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-2">
                   <p className="text-sm text-slate-600 line-clamp-2">{resource.description}</p>
@@ -302,7 +318,7 @@ const Resources = () => {
                 <CardFooter className="pt-2">
                   <div className="flex flex-wrap gap-1">
                     {resource.tags?.slice(0, 3).map((tag, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
+                      <Badge key={i} variant="outline" className="text-xs transition-colors hover:bg-primary/10">{tag}</Badge>
                     ))}
                   </div>
                 </CardFooter>

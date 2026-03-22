@@ -49,6 +49,11 @@ const CaseNotes = () => {
   const [selectedNote, setSelectedNote] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const [formData, setFormData] = useState({
     note_type: 'shift_note',
@@ -188,23 +193,23 @@ const CaseNotes = () => {
   }
 
   return (
-    <div className="space-y-6" data-testid="case-notes-page">
+    <div className={`space-y-6 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} data-testid="case-notes-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Case Notes</h1>
           <p className="text-slate-500 mt-1">Document shift activities, incidents, and medication reports</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => openCreateModal('shift_note')}>
+          <Button variant="outline" onClick={() => openCreateModal('shift_note')} className="transition-all duration-200 hover:scale-105 hover:shadow-md">
             <FileText className="w-4 h-4 mr-2" />
             Shift Note
           </Button>
-          <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => openCreateModal('incident_report')}>
+          <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105 hover:shadow-md" onClick={() => openCreateModal('incident_report')}>
             <AlertTriangle className="w-4 h-4 mr-2" />
             Incident Report
           </Button>
-          <Button variant="outline" className="border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => openCreateModal('missed_medication')}>
+          <Button variant="outline" className="border-amber-200 text-amber-700 hover:bg-amber-50 transition-all duration-200 hover:scale-105 hover:shadow-md" onClick={() => openCreateModal('missed_medication')}>
             <Pill className="w-4 h-4 mr-2" />
             Missed Medication
           </Button>
@@ -213,8 +218,8 @@ const CaseNotes = () => {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          <Card className="border-slate-200">
+        <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 transition-all duration-500 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <Card className="border-slate-200 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -225,7 +230,7 @@ const CaseNotes = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="border-blue-100">
+          <Card className="border-blue-100 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -236,7 +241,7 @@ const CaseNotes = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="border-red-100">
+          <Card className="border-red-100 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1">
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center justify-between">
                 <div>
