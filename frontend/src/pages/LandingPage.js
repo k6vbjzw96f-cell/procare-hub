@@ -35,7 +35,11 @@ import {
   CheckCircle2,
   MapPin,
   Phone,
-  Mail
+  Mail,
+  UserCog,
+  Briefcase,
+  ClipboardList,
+  Plug
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -254,12 +258,13 @@ const LandingPage = () => {
 
   const features = [
     { icon: Users, title: 'Client Management', description: 'Comprehensive participant profiles with NDIS plan tracking and support needs documentation.' },
-    { icon: Calendar, title: 'Smart Rostering', description: 'Intelligent shift scheduling with availability matching and conflict detection.' },
-    { icon: FileText, title: 'Invoicing & Billing', description: 'NDIS-compliant invoicing with automatic line item generation and payment tracking.' },
-    { icon: Shield, title: 'Compliance Tracking', description: 'Stay audit-ready with incident reporting, certifications, and compliance calendars.' },
-    { icon: BarChart3, title: 'Reports & Analytics', description: 'Actionable insights with customizable reports for NDIS audits and business decisions.' },
-    { icon: Clock, title: 'Time & Attendance', description: 'Digital clock-in/out with GPS verification and automated timesheet generation.' },
-    { icon: DollarSign, title: 'Funding Management', description: 'Track NDIS budgets, monitor plan utilisation, and ensure funding is allocated efficiently across support categories.' }
+    { icon: DollarSign, title: 'Funding Management', description: 'Track NDIS budgets, monitor plan utilisation, and ensure funding is allocated efficiently across support categories.' },
+    { icon: UserCog, title: 'Staff Management', description: 'Complete staff profiles, qualifications tracking, availability management, and performance monitoring.' },
+    { icon: Briefcase, title: 'HR & Payroll', description: 'Award interpretation, payroll processing, leave management, onboarding workflows, and compliance tracking.' },
+    { icon: Calendar, title: 'Rostering Software', description: 'Intelligent shift scheduling with availability matching, conflict detection, and automated notifications.' },
+    { icon: ClipboardList, title: 'Custom Forms', description: 'Build and deploy custom forms for assessments, incident reports, progress notes, and data collection.' },
+    { icon: Smartphone, title: 'Client Mobile App', description: 'Native iOS and Android apps for staff with offline access, GPS clock-in, and real-time updates.' },
+    { icon: Plug, title: 'API & Integrations', description: 'Connect with Xero, MYOB, Deputy, and other tools. Open API for custom integrations.' }
   ];
 
   const testimonials = [
