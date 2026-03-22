@@ -588,14 +588,14 @@ const LandingPage = () => {
                 </span>
               </h2>
               <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-                ProCare Hub was founded in 2020 by a team of disability sector professionals and software engineers 
-                who saw firsthand the challenges NDIS providers face with outdated, fragmented systems.
+                At ProCare Hub, our name reflects our mission to deliver professional care and support. 
+                <strong className="text-slate-700"> 'Pro'</strong> stands for professional, highlighting our commitment to expert care, while 
+                <strong className="text-slate-700"> 'Care'</strong> represents our compassionate approach. 
+                <strong className="text-slate-700"> 'Hub'</strong> signifies a central connection point for individuals, families, and healthcare professionals, 
+                fostering a community that promotes well-being and inclusion.
               </p>
               <p className="text-slate-600 mb-8 leading-relaxed">
-                Our mission is simple: empower NDIS providers with technology that actually works. We've built 
-                ProCare Hub from the ground up specifically for the Australian disability sector, with deep 
-                understanding of NDIS compliance requirements, award interpretation complexities, and the 
-                day-to-day realities of delivering quality support services.
+                We're dedicated to providing personalised support services, empowering people to live their best lives.
               </p>
               
               {/* Stats */}
