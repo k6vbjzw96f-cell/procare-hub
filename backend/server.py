@@ -4579,6 +4579,142 @@ async def upload_company_logo(file: UploadFile = File(...)):
     
     return {"logo_url": logo_url}
 
+# ============== Demo Requests ==============
+
+class DemoRequest(BaseModel):
+    name: str
+    email: EmailStr
+    company: str
+    phone: Optional[str] = None
+    message: Optional[str] = None
+
+@api_router.post("/demo-requests")
+async def submit_demo_request(request: DemoRequest):
+    """Submit a demo request - stores in DB and sends email notification"""
+    
+    # Create demo request record
+    demo_record = {
+        "id": str(uuid.uuid4()),
+        "name": request.name,
+        "email": request.email,
+        "company": request.company,
+        "phone": request.phone,
+        "message": request.message,
+        "status": "new",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Store in database
+    await db.demo_requests.insert_one(demo_record)
+    
+    # Send email notification to admin
+    try:
+        admin_email_html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0;">New Demo Request</h1>
+            </div>
+            <div style="padding: 30px; background: #f8fafc;">
+                <h2 style="color: #1e293b; margin-top: 0;">Someone wants a demo!</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 120px;">Name:</td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">{request.name}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Email:</td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b;">{request.email}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Organisation:</td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b;">{request.company}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Phone:</td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b;">{request.phone or 'Not provided'}</td>
+                    </tr>
+                </table>
+                {f'<div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #10b981;"><p style="color: #64748b; margin: 0 0 5px 0; font-size: 12px;">MESSAGE:</p><p style="color: #1e293b; margin: 0;">{request.message}</p></div>' if request.message else ''}
+                <div style="margin-top: 30px; text-align: center;">
+                    <a href="mailto:{request.email}" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">Reply to {request.name}</a>
+                </div>
+            </div>
+            <div style="padding: 20px; text-align: center; color: #94a3b8; font-size: 12px;">
+                ProCare Hub - NDIS Provider Platform
+            </div>
+        </div>
+        """
+        
+        # Send to admin (using configured sender email or fallback)
+        await send_email(
+            recipient=SENDER_EMAIL,  # Send to the configured sender/admin email
+            subject=f"New Demo Request from {request.name} at {request.company}",
+            html_content=admin_email_html
+        )
+        
+        # Send confirmation to the requester
+        confirmation_html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0;">Thanks for your interest!</h1>
+            </div>
+            <div style="padding: 30px; background: #f8fafc;">
+                <h2 style="color: #1e293b; margin-top: 0;">Hi {request.name},</h2>
+                <p style="color: #475569; line-height: 1.6;">
+                    Thank you for requesting a demo of ProCare Hub. We've received your request and our team will contact you within 24 hours to schedule a personalized demonstration.
+                </p>
+                <p style="color: #475569; line-height: 1.6;">
+                    In the meantime, feel free to explore our features or reach out if you have any questions.
+                </p>
+                <div style="margin-top: 30px; padding: 20px; background: white; border-radius: 8px; text-align: center;">
+                    <p style="color: #64748b; margin: 0 0 10px 0;">Your request details:</p>
+                    <p style="color: #1e293b; margin: 0;"><strong>{request.company}</strong></p>
+                    <p style="color: #64748b; margin: 5px 0 0 0;">{request.email}</p>
+                </div>
+            </div>
+            <div style="padding: 20px; text-align: center; color: #94a3b8; font-size: 12px;">
+                ProCare Hub - The Complete Platform for NDIS Providers
+            </div>
+        </div>
+        """
+        
+        await send_email(
+            recipient=request.email,
+            subject="Thanks for requesting a ProCare Hub demo!",
+            html_content=confirmation_html
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to send demo request emails: {e}")
+        # Don't fail the request if email fails - the data is still stored
+    
+    return {"message": "Demo request submitted successfully", "id": demo_record["id"]}
+
+@api_router.get("/demo-requests")
+async def get_demo_requests(current_user: dict = Depends(get_current_user)):
+    """Get all demo requests (admin only)"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    requests = await db.demo_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return requests
+
+@api_router.put("/demo-requests/{request_id}/status")
+async def update_demo_request_status(request_id: str, status: str, current_user: dict = Depends(get_current_user)):
+    """Update demo request status (admin only)"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.demo_requests.update_one(
+        {"id": request_id},
+        {"$set": {"status": status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Demo request not found")
+    
+    return {"message": "Status updated"}
+
 # Startup event
 @app.on_event("startup")
 async def startup():

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import axios from 'axios';
 import { 
   Check, 
   ArrowRight, 
@@ -30,10 +31,14 @@ import {
   Globe
 } from 'lucide-react';
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const [showChat, setShowChat] = useState(false);
   const [showDemoModal, setShowDemoModal] = useState(false);
+  const [submittingDemo, setSubmittingDemo] = useState(false);
   const [chatMessages, setChatMessages] = useState([
     { from: 'support', text: 'Hi! 👋 Welcome to ProCare Hub. How can I help you today?' }
   ]);
@@ -55,11 +60,27 @@ const LandingPage = () => {
     }, 1000);
   };
 
-  const handleDemoSubmit = (e) => {
+  const handleDemoSubmit = async (e) => {
     e.preventDefault();
-    toast.success('Demo request submitted! We\'ll contact you within 24 hours.');
-    setShowDemoModal(false);
-    setDemoForm({ name: '', email: '', company: '', phone: '', message: '' });
+    
+    if (!demoForm.name || !demoForm.email || !demoForm.company) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    setSubmittingDemo(true);
+    
+    try {
+      await axios.post(`${API}/demo-requests`, demoForm);
+      toast.success('Demo request submitted! Check your email for confirmation. We\'ll contact you within 24 hours.');
+      setShowDemoModal(false);
+      setDemoForm({ name: '', email: '', company: '', phone: '', message: '' });
+    } catch (error) {
+      console.error('Demo request error:', error);
+      toast.error('Failed to submit demo request. Please try again or email us directly.');
+    }
+    
+    setSubmittingDemo(false);
   };
 
   const pricingPlans = [
@@ -562,9 +583,9 @@ const LandingPage = () => {
                 onChange={(e) => setDemoForm({...demoForm, message: e.target.value})}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Submit Request
-              <ArrowRight className="w-4 h-4 ml-2" />
+            <Button type="submit" className="w-full" disabled={submittingDemo}>
+              {submittingDemo ? 'Submitting...' : 'Submit Request'}
+              {!submittingDemo && <ArrowRight className="w-4 h-4 ml-2" />}
             </Button>
           </form>
         </DialogContent>
