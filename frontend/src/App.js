@@ -33,6 +33,7 @@ import Funding from '@/pages/Funding';
 import CaseNotes from '@/pages/CaseNotes';
 import ServiceBookings from '@/pages/ServiceBookings';
 import Resources from '@/pages/Resources';
+import Community from '@/pages/Community';
 import Layout from '@/components/Layout';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import * as serviceWorkerRegistration from '@/serviceWorkerRegistration';
@@ -163,6 +164,7 @@ function App() {
                     <Route path="/case-notes" element={<CaseNotes />} />
                     <Route path="/service-bookings" element={<ServiceBookings />} />
                     <Route path="/resources" element={<Resources />} />
+                    <Route path="/community" element={<Community />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

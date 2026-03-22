@@ -5935,6 +5935,341 @@ async def update_demo_request_status(request_id: str, status: str, current_user:
     
     return {"message": "Status updated"}
 
+# ==================== COMMUNITY FORUM ====================
+
+class ForumCategory(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = None
+    icon: str = "MessageSquare"
+    color: str = "primary"
+    order: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ForumPost(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    category_id: str
+    author_id: str
+    author_name: str
+    author_role: Optional[str] = None
+    title: str
+    content: str
+    is_pinned: bool = False
+    is_announcement: bool = False
+    views: int = 0
+    reply_count: int = 0
+    last_activity: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ForumReply(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    post_id: str
+    author_id: str
+    author_name: str
+    author_role: Optional[str] = None
+    content: str
+    is_solution: bool = False
+    likes: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CommunityEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    event_type: str  # webinar, meetup, training, workshop
+    date: str
+    time: str
+    duration_minutes: int = 60
+    location: Optional[str] = None  # For in-person events
+    meeting_link: Optional[str] = None  # For virtual events
+    max_attendees: Optional[int] = None
+    attendees: List[str] = []
+    organizer_id: str
+    organizer_name: str
+    status: str = "upcoming"  # upcoming, ongoing, completed, cancelled
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ForumPostCreate(BaseModel):
+    category_id: str
+    title: str
+    content: str
+    is_pinned: bool = False
+    is_announcement: bool = False
+
+class ForumReplyCreate(BaseModel):
+    content: str
+
+class CommunityEventCreate(BaseModel):
+    title: str
+    description: str
+    event_type: str
+    date: str
+    time: str
+    duration_minutes: int = 60
+    location: Optional[str] = None
+    meeting_link: Optional[str] = None
+    max_attendees: Optional[int] = None
+
+# Forum Categories
+@api_router.get("/forum/categories")
+async def get_forum_categories(current_user: User = Depends(get_current_user)):
+    categories = await db.forum_categories.find({}, {"_id": 0}).sort("order", 1).to_list(50)
+    
+    # If no categories exist, create default ones
+    if not categories:
+        default_categories = [
+            {"id": str(uuid.uuid4()), "name": "Announcements", "description": "Official announcements and updates", "icon": "Bell", "color": "amber", "order": 0},
+            {"id": str(uuid.uuid4()), "name": "General Discussion", "description": "General topics and conversations", "icon": "MessageSquare", "color": "blue", "order": 1},
+            {"id": str(uuid.uuid4()), "name": "NDIS Updates", "description": "NDIS policy changes and news", "icon": "FileText", "color": "emerald", "order": 2},
+            {"id": str(uuid.uuid4()), "name": "Best Practices", "description": "Share tips and best practices", "icon": "Lightbulb", "color": "purple", "order": 3},
+            {"id": str(uuid.uuid4()), "name": "Support & Help", "description": "Get help from the community", "icon": "HelpCircle", "color": "rose", "order": 4},
+        ]
+        for cat in default_categories:
+            cat["created_at"] = datetime.now(timezone.utc).isoformat()
+            await db.forum_categories.insert_one({**cat})
+        # Re-fetch to get clean data without _id
+        categories = await db.forum_categories.find({}, {"_id": 0}).sort("order", 1).to_list(50)
+    
+    # Add post count for each category
+    for cat in categories:
+        cat["post_count"] = await db.forum_posts.count_documents({"category_id": cat["id"]})
+    
+    return categories
+
+# Forum Posts
+@api_router.get("/forum/posts")
+async def get_forum_posts(
+    category_id: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    query = {}
+    if category_id:
+        query["category_id"] = category_id
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"content": {"$regex": search, "$options": "i"}}
+        ]
+    
+    posts = await db.forum_posts.find(query, {"_id": 0}).sort([("is_pinned", -1), ("last_activity", -1)]).to_list(100)
+    
+    for post in posts:
+        if isinstance(post.get('created_at'), str):
+            post['created_at'] = datetime.fromisoformat(post['created_at'])
+        if isinstance(post.get('last_activity'), str):
+            post['last_activity'] = datetime.fromisoformat(post['last_activity'])
+    
+    return posts
+
+@api_router.get("/forum/posts/{post_id}")
+async def get_forum_post(post_id: str, current_user: User = Depends(get_current_user)):
+    post = await db.forum_posts.find_one({"id": post_id}, {"_id": 0})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Increment views
+    await db.forum_posts.update_one({"id": post_id}, {"$inc": {"views": 1}})
+    post["views"] = post.get("views", 0) + 1
+    
+    # Get replies
+    replies = await db.forum_replies.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(100)
+    for reply in replies:
+        if isinstance(reply.get('created_at'), str):
+            reply['created_at'] = datetime.fromisoformat(reply['created_at'])
+    
+    post["replies"] = replies
+    return post
+
+@api_router.post("/forum/posts")
+async def create_forum_post(post_data: ForumPostCreate, current_user: User = Depends(get_current_user)):
+    # Check if category is announcement-only and user is not admin
+    if post_data.is_announcement and current_user.role not in ["admin", "coordinator"]:
+        raise HTTPException(status_code=403, detail="Only admins can create announcements")
+    
+    post = ForumPost(
+        category_id=post_data.category_id,
+        author_id=current_user.id,
+        author_name=current_user.full_name,
+        author_role=current_user.role,
+        title=post_data.title,
+        content=post_data.content,
+        is_pinned=post_data.is_pinned if current_user.role in ["admin", "coordinator"] else False,
+        is_announcement=post_data.is_announcement
+    )
+    
+    doc = post.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    doc["last_activity"] = doc["last_activity"].isoformat()
+    await db.forum_posts.insert_one(doc)
+    
+    return post
+
+@api_router.delete("/forum/posts/{post_id}")
+async def delete_forum_post(post_id: str, current_user: User = Depends(get_current_user)):
+    post = await db.forum_posts.find_one({"id": post_id}, {"_id": 0})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Only author or admin can delete
+    if post["author_id"] != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    await db.forum_posts.delete_one({"id": post_id})
+    await db.forum_replies.delete_many({"post_id": post_id})
+    
+    return {"message": "Post deleted successfully"}
+
+# Forum Replies
+@api_router.post("/forum/posts/{post_id}/replies")
+async def create_forum_reply(post_id: str, reply_data: ForumReplyCreate, current_user: User = Depends(get_current_user)):
+    post = await db.forum_posts.find_one({"id": post_id}, {"_id": 0})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    reply = ForumReply(
+        post_id=post_id,
+        author_id=current_user.id,
+        author_name=current_user.full_name,
+        author_role=current_user.role,
+        content=reply_data.content
+    )
+    
+    doc = reply.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.forum_replies.insert_one(doc)
+    
+    # Update post reply count and last activity
+    await db.forum_posts.update_one(
+        {"id": post_id},
+        {
+            "$inc": {"reply_count": 1},
+            "$set": {"last_activity": datetime.now(timezone.utc).isoformat()}
+        }
+    )
+    
+    return reply
+
+@api_router.delete("/forum/replies/{reply_id}")
+async def delete_forum_reply(reply_id: str, current_user: User = Depends(get_current_user)):
+    reply = await db.forum_replies.find_one({"id": reply_id}, {"_id": 0})
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+    
+    if reply["author_id"] != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    await db.forum_replies.delete_one({"id": reply_id})
+    await db.forum_posts.update_one({"id": reply["post_id"]}, {"$inc": {"reply_count": -1}})
+    
+    return {"message": "Reply deleted successfully"}
+
+# Community Events
+@api_router.get("/community/events")
+async def get_community_events(
+    status: Optional[str] = None,
+    event_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    query = {}
+    if status:
+        query["status"] = status
+    if event_type:
+        query["event_type"] = event_type
+    
+    events = await db.community_events.find(query, {"_id": 0}).sort("date", 1).to_list(100)
+    
+    for event in events:
+        if isinstance(event.get('created_at'), str):
+            event['created_at'] = datetime.fromisoformat(event['created_at'])
+        event["attendee_count"] = len(event.get("attendees", []))
+        event["is_registered"] = current_user.id in event.get("attendees", [])
+    
+    return events
+
+@api_router.get("/community/events/{event_id}")
+async def get_community_event(event_id: str, current_user: User = Depends(get_current_user)):
+    event = await db.community_events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    event["attendee_count"] = len(event.get("attendees", []))
+    event["is_registered"] = current_user.id in event.get("attendees", [])
+    return event
+
+@api_router.post("/community/events")
+async def create_community_event(event_data: CommunityEventCreate, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    event = CommunityEvent(
+        title=event_data.title,
+        description=event_data.description,
+        event_type=event_data.event_type,
+        date=event_data.date,
+        time=event_data.time,
+        duration_minutes=event_data.duration_minutes,
+        location=event_data.location,
+        meeting_link=event_data.meeting_link,
+        max_attendees=event_data.max_attendees,
+        organizer_id=current_user.id,
+        organizer_name=current_user.full_name
+    )
+    
+    doc = event.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.community_events.insert_one(doc)
+    
+    return event
+
+@api_router.post("/community/events/{event_id}/register")
+async def register_for_event(event_id: str, current_user: User = Depends(get_current_user)):
+    event = await db.community_events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    if current_user.id in event.get("attendees", []):
+        raise HTTPException(status_code=400, detail="Already registered")
+    
+    if event.get("max_attendees") and len(event.get("attendees", [])) >= event["max_attendees"]:
+        raise HTTPException(status_code=400, detail="Event is full")
+    
+    await db.community_events.update_one(
+        {"id": event_id},
+        {"$push": {"attendees": current_user.id}}
+    )
+    
+    return {"message": "Successfully registered for event"}
+
+@api_router.post("/community/events/{event_id}/unregister")
+async def unregister_from_event(event_id: str, current_user: User = Depends(get_current_user)):
+    event = await db.community_events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    if current_user.id not in event.get("attendees", []):
+        raise HTTPException(status_code=400, detail="Not registered for this event")
+    
+    await db.community_events.update_one(
+        {"id": event_id},
+        {"$pull": {"attendees": current_user.id}}
+    )
+    
+    return {"message": "Successfully unregistered from event"}
+
+@api_router.delete("/community/events/{event_id}")
+async def delete_community_event(event_id: str, current_user: User = Depends(get_current_user)):
+    check_permission(current_user, ["admin"])
+    
+    result = await db.community_events.delete_one({"id": event_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    return {"message": "Event deleted successfully"}
+
 # ============== Self-Service Demo Account ==============
 
 DEMO_EMAIL = "demo@procarehub.com.au"

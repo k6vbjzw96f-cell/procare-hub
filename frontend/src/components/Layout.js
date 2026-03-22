@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2, Settings, CalendarCheck, Pill, Target, MessageSquare, CreditCard, CalendarDays, ClipboardList, FileSignature, Users2, Briefcase, DollarSign, NotebookPen, CalendarPlus, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Calendar, Clock, FileText, Shield, BarChart3, LogOut, Bell, Car, Home, Building2, Settings, CalendarCheck, Pill, Target, MessageSquare, CreditCard, CalendarDays, ClipboardList, FileSignature, Users2, Briefcase, DollarSign, NotebookPen, CalendarPlus, BookOpen, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
@@ -47,6 +47,7 @@ const Layout = ({ children, user, onLogout }) => {
     { name: 'Goals', href: '/goals', icon: Target, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Service Bookings', href: '/service-bookings', icon: CalendarPlus, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Resources', href: '/resources', icon: BookOpen, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Community', href: '/community', icon: Globe, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Team Chat', href: '/communication', icon: MessageSquare, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Vehicles', href: '/vehicles', icon: Car, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Locations', href: '/houses', icon: Home, roles: ['admin', 'coordinator'] },
