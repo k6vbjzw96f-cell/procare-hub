@@ -66,6 +66,21 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 5. **Compliance Calendar**: Visual calendar for compliance deadlines with reminders
 6. **Feedback & Surveys**: Create surveys, collect responses, view analytics
 
+### Features Added (March 22, 2026 - Complete)
+7. **Role-Based Dashboards**: Personalized dashboard views for Admin/Coordinator, Support Worker, and Participant roles with tailored stats and quick actions
+8. **Roster Export**: Export roster/shifts to PDF and Excel (CSV) format with download functionality
+9. **Scheduling Automation**: Bulk scheduling, recurring shifts, AI-powered staff assignment, shift templates
+10. **Case Notes**: Comprehensive case notes for shift details, incidents, and missed medications
+11. **Service Bookings**: Client service request management with approval workflow
+12. **Resource Library**: Document repository for training materials and NDIS resources
+13. **Funding Management**: Track participant NDIS funding budgets and utilization
+14. **Community Hub** (NEW):
+    - **Forum**: Discussion threads with 5 default categories (Announcements, General Discussion, NDIS Updates, Best Practices, Support & Help)
+    - **Events**: Community events (webinars, meetups, training, workshops) with registration system
+    - Post creation with category selection
+    - Reply system with view tracking
+    - Admin can create announcements and pin posts
+
 ### Higher Effort Integrations (March 2026 - Implemented in Demo Mode)
 7. **Google Calendar Integration**: 
    - Settings > Integrations tab to connect/disconnect
@@ -138,8 +153,11 @@ ProCare Hub is a comprehensive NDIS (National Disability Insurance Scheme) provi
 - Leave Balance Tracking (accrual and remaining days)
 - Push Notifications
 - Mobile App (React Native)
+- Resource Marketplace (NDIS service directory)
+- Enhanced Reminders (SMS/email notifications)
 
 ### Technical Debt
-- Refactor server.py (4300+ lines) into modular structure using FastAPI APIRouter
+- Refactor server.py (7500+ lines) into modular structure using FastAPI APIRouter - **URGENT**
 - Create reusable frontend components for tables and modals
 - Add comprehensive error handling and logging
+- Refactor large frontend components (Rostering.js, Login.js, LandingPage.js)
