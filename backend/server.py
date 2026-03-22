@@ -4715,6 +4715,1253 @@ async def update_demo_request_status(request_id: str, status: str, current_user:
     
     return {"message": "Status updated"}
 
+# ============== Self-Service Demo Account ==============
+
+DEMO_EMAIL = "demo@procarehub.com.au"
+DEMO_PASSWORD = "DemoAccess2024!"
+
+async def create_demo_data():
+    """Create or refresh demo account with comprehensive sample data for all modules"""
+    
+    # Check if demo user exists
+    demo_user = await db.users.find_one({"email": DEMO_EMAIL}, {"_id": 0})
+    
+    if not demo_user:
+        demo_user = {
+            "id": str(uuid.uuid4()),
+            "email": DEMO_EMAIL,
+            "password_hash": pwd_context.hash(DEMO_PASSWORD),
+            "full_name": "Demo User",
+            "role": "admin",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(demo_user)
+        demo_user_id = demo_user["id"]
+    else:
+        demo_user_id = demo_user["id"]
+    
+    # Check if demo data already exists
+    existing_clients = await db.clients.count_documents({"is_demo": True})
+    if existing_clients > 0:
+        return demo_user_id
+    
+    today = datetime.now(timezone.utc).date()
+    
+    # ==================== CLIENTS (PARTICIPANTS) ====================
+    sample_clients = [
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Emma Thompson",
+            "ndis_number": "430123456",
+            "email": "emma.t@email.com",
+            "phone": "0412 345 678",
+            "date_of_birth": "1985-03-15",
+            "address": "42 Sunrise Avenue, Melbourne VIC 3000",
+            "primary_disability": "Intellectual Disability",
+            "plan_start_date": "2024-01-01",
+            "plan_end_date": "2025-01-01",
+            "funding_total": 85000,
+            "funding_used": 42500,
+            "plan_manager": "Plan Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "John Thompson (Brother) - 0423 456 789",
+            "notes": "Emma enjoys art therapy and social activities. Prefers morning appointments.",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Michael Chen",
+            "ndis_number": "430234567",
+            "email": "m.chen@email.com",
+            "phone": "0423 456 789",
+            "date_of_birth": "1992-07-22",
+            "address": "18 Harbour Street, Sydney NSW 2000",
+            "primary_disability": "Autism Spectrum Disorder",
+            "plan_start_date": "2024-03-01",
+            "plan_end_date": "2025-03-01",
+            "funding_total": 120000,
+            "funding_used": 35000,
+            "plan_manager": "Self Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "Lisa Chen (Mother) - 0434 567 890",
+            "notes": "Michael requires consistent routines. Interested in employment support. Responds well to visual schedules.",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Sarah Williams",
+            "ndis_number": "430345678",
+            "email": "sarah.w@email.com",
+            "phone": "0434 567 890",
+            "date_of_birth": "1978-11-08",
+            "address": "7 Garden Grove, Brisbane QLD 4000",
+            "primary_disability": "Physical Disability - Spinal Cord Injury",
+            "plan_start_date": "2024-02-15",
+            "plan_end_date": "2025-02-15",
+            "funding_total": 150000,
+            "funding_used": 72000,
+            "plan_manager": "NDIA Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "David Williams (Husband) - 0445 678 901",
+            "notes": "Sarah uses a powered wheelchair. Home modifications completed. Very active in community advocacy.",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "James O'Connor",
+            "ndis_number": "430456789",
+            "email": "james.oc@email.com",
+            "phone": "0445 678 901",
+            "date_of_birth": "2001-05-30",
+            "address": "SIL House - 23 River Road, Perth WA 6000",
+            "primary_disability": "Psychosocial Disability",
+            "plan_start_date": "2024-04-01",
+            "plan_end_date": "2025-04-01",
+            "funding_total": 95000,
+            "funding_used": 28000,
+            "plan_manager": "Plan Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "Mary O'Connor (Mother) - 0456 789 012",
+            "notes": "James lives in SIL accommodation. Working towards independent living goals. Attends TAFE part-time.",
+            "status": "active",
+            "sil_resident": True,
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Olivia Martinez",
+            "ndis_number": "430567890",
+            "email": "olivia.m@email.com",
+            "phone": "0456 789 012",
+            "date_of_birth": "1995-09-12",
+            "address": "55 Beach Boulevard, Gold Coast QLD 4217",
+            "primary_disability": "Vision Impairment - Legally Blind",
+            "plan_start_date": "2024-01-15",
+            "plan_end_date": "2025-01-15",
+            "funding_total": 65000,
+            "funding_used": 32000,
+            "plan_manager": "Self Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "Carlos Martinez (Father) - 0467 890 123",
+            "notes": "Olivia is completing university studies. Requires assistive technology support. Guide dog user.",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "William Brown",
+            "ndis_number": "430678901",
+            "email": "will.b@email.com",
+            "phone": "0467 890 123",
+            "date_of_birth": "1988-12-03",
+            "address": "SIL House - 23 River Road, Perth WA 6000",
+            "primary_disability": "Acquired Brain Injury",
+            "plan_start_date": "2024-05-01",
+            "plan_end_date": "2025-05-01",
+            "funding_total": 180000,
+            "funding_used": 55000,
+            "plan_manager": "NDIA Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "Susan Brown (Wife) - 0478 901 234",
+            "notes": "William requires 24/7 support. SIL resident. Making good progress with rehabilitation goals.",
+            "status": "active",
+            "sil_resident": True,
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Sophie Anderson",
+            "ndis_number": "430789012",
+            "email": "sophie.a@email.com",
+            "phone": "0478 901 234",
+            "date_of_birth": "2005-06-18",
+            "address": "12 Park Lane, Adelaide SA 5000",
+            "primary_disability": "Down Syndrome",
+            "plan_start_date": "2024-02-01",
+            "plan_end_date": "2025-02-01",
+            "funding_total": 75000,
+            "funding_used": 38000,
+            "plan_manager": "Plan Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "Karen Anderson (Mother) - 0489 012 345",
+            "notes": "Sophie recently finished school. Participating in school leaver employment support program.",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Thomas Wilson",
+            "ndis_number": "430890123",
+            "email": "tom.w@email.com",
+            "phone": "0489 012 345",
+            "date_of_birth": "1970-04-25",
+            "address": "88 Mountain View, Hobart TAS 7000",
+            "primary_disability": "Multiple Sclerosis",
+            "plan_start_date": "2024-03-15",
+            "plan_end_date": "2025-03-15",
+            "funding_total": 110000,
+            "funding_used": 45000,
+            "plan_manager": "Plan Managed",
+            "support_coordinator": "Rachel Green",
+            "emergency_contact": "Margaret Wilson (Sister) - 0490 123 456",
+            "notes": "Tom's condition is progressive. Currently mobile with walker. Home modifications in progress.",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.clients.insert_many(sample_clients)
+    
+    # ==================== STAFF MEMBERS ====================
+    sample_staff = [
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Jessica Brown",
+            "email": "jessica.b@sunshinecare.com.au",
+            "phone": "0478 901 234",
+            "role": "support_worker",
+            "employment_type": "Full-time",
+            "start_date": "2022-03-15",
+            "hourly_rate": 35.50,
+            "certifications": ["Certificate III Individual Support", "First Aid CPR", "Manual Handling", "Medication Administration"],
+            "cert_expiries": {"First Aid CPR": "2025-06-15", "NDIS Worker Screening": "2026-03-20"},
+            "availability": {"monday": True, "tuesday": True, "wednesday": True, "thursday": True, "friday": True, "saturday": False, "sunday": False},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "David Kim",
+            "email": "david.k@sunshinecare.com.au",
+            "phone": "0489 012 345",
+            "role": "support_worker",
+            "employment_type": "Part-time",
+            "start_date": "2023-01-10",
+            "hourly_rate": 38.00,
+            "certifications": ["Certificate IV Disability", "First Aid CPR", "Medication Administration", "Restrictive Practices"],
+            "cert_expiries": {"First Aid CPR": "2025-01-10", "NDIS Worker Screening": "2025-08-15"},
+            "availability": {"monday": True, "tuesday": False, "wednesday": True, "thursday": False, "friday": True, "saturday": True, "sunday": False},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Rachel Green",
+            "email": "rachel.g@sunshinecare.com.au",
+            "phone": "0490 123 456",
+            "role": "service_coordinator",
+            "employment_type": "Full-time",
+            "start_date": "2021-06-01",
+            "hourly_rate": 52.00,
+            "certifications": ["Bachelor of Social Work", "First Aid CPR", "NDIS Worker Screening", "Cert IV Training & Assessment"],
+            "cert_expiries": {"First Aid CPR": "2025-09-01", "NDIS Worker Screening": "2026-06-01"},
+            "availability": {"monday": True, "tuesday": True, "wednesday": True, "thursday": True, "friday": True, "saturday": False, "sunday": False},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Marcus Johnson",
+            "email": "marcus.j@sunshinecare.com.au",
+            "phone": "0401 234 567",
+            "role": "support_worker",
+            "employment_type": "Casual",
+            "start_date": "2023-08-20",
+            "hourly_rate": 42.00,
+            "certifications": ["Certificate III Individual Support", "First Aid CPR", "Behaviour Support", "Mental Health First Aid"],
+            "cert_expiries": {"First Aid CPR": "2025-08-20", "NDIS Worker Screening": "2026-02-15"},
+            "availability": {"monday": False, "tuesday": True, "wednesday": False, "thursday": True, "friday": False, "saturday": True, "sunday": True},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Emily Watson",
+            "email": "emily.w@sunshinecare.com.au",
+            "phone": "0412 345 678",
+            "role": "support_worker",
+            "employment_type": "Full-time",
+            "start_date": "2022-11-01",
+            "hourly_rate": 36.50,
+            "certifications": ["Certificate III Individual Support", "First Aid CPR", "Manual Handling", "Infection Control"],
+            "cert_expiries": {"First Aid CPR": "2024-11-01", "NDIS Worker Screening": "2025-11-01"},
+            "availability": {"monday": True, "tuesday": True, "wednesday": True, "thursday": True, "friday": True, "saturday": False, "sunday": False},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Chris Taylor",
+            "email": "chris.t@sunshinecare.com.au",
+            "phone": "0423 456 789",
+            "role": "team_leader",
+            "employment_type": "Full-time",
+            "start_date": "2020-02-15",
+            "hourly_rate": 48.00,
+            "certifications": ["Certificate IV Disability", "First Aid CPR", "Medication Administration", "Cert IV Leadership"],
+            "cert_expiries": {"First Aid CPR": "2025-02-15", "NDIS Worker Screening": "2026-02-15"},
+            "availability": {"monday": True, "tuesday": True, "wednesday": True, "thursday": True, "friday": True, "saturday": False, "sunday": False},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Nina Patel",
+            "email": "nina.p@sunshinecare.com.au",
+            "phone": "0434 567 890",
+            "role": "support_worker",
+            "employment_type": "Part-time",
+            "start_date": "2024-01-08",
+            "hourly_rate": 35.50,
+            "certifications": ["Certificate III Individual Support", "First Aid CPR"],
+            "cert_expiries": {"First Aid CPR": "2027-01-08", "NDIS Worker Screening": "2027-01-08"},
+            "availability": {"monday": False, "tuesday": True, "wednesday": True, "thursday": True, "friday": False, "saturday": True, "sunday": True},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "full_name": "Alex Morgan",
+            "email": "alex.m@sunshinecare.com.au",
+            "phone": "0445 678 901",
+            "role": "sil_coordinator",
+            "employment_type": "Full-time",
+            "start_date": "2021-09-01",
+            "hourly_rate": 50.00,
+            "certifications": ["Bachelor of Nursing", "First Aid CPR", "Medication Administration", "NDIS Worker Screening"],
+            "cert_expiries": {"First Aid CPR": "2025-09-01", "NDIS Worker Screening": "2026-09-01"},
+            "availability": {"monday": True, "tuesday": True, "wednesday": True, "thursday": True, "friday": True, "saturday": False, "sunday": False},
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.staff.insert_many(sample_staff)
+    
+    # ==================== SHIFTS / ROSTER ====================
+    sample_shifts = []
+    service_types = ["Personal Care", "Community Access", "Skill Development", "Transport", "Domestic Assistance", "Social Support"]
+    
+    for i in range(21):  # 3 weeks of shifts
+        shift_date = today + timedelta(days=i - 7)  # Start from a week ago
+        
+        # Morning shifts
+        for j in range(3):
+            client_idx = (i + j) % len(sample_clients)
+            staff_idx = (i + j) % len(sample_staff)
+            sample_shifts.append({
+                "id": str(uuid.uuid4()),
+                "client_id": sample_clients[client_idx]["id"],
+                "client_name": sample_clients[client_idx]["full_name"],
+                "staff_id": sample_staff[staff_idx]["id"],
+                "staff_name": sample_staff[staff_idx]["full_name"],
+                "date": shift_date.isoformat(),
+                "start_time": f"0{7 + j}:00",
+                "end_time": f"{11 + j}:00",
+                "service_type": service_types[j % len(service_types)],
+                "status": "completed" if i < 7 else ("confirmed" if i < 14 else "pending"),
+                "notes": f"Regular {service_types[j % len(service_types)].lower()} support",
+                "clock_in": f"{shift_date.isoformat()}T0{7 + j}:02:00" if i < 7 else None,
+                "clock_out": f"{shift_date.isoformat()}T{11 + j}:05:00" if i < 7 else None,
+                "is_demo": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        # Afternoon shifts
+        for j in range(2):
+            client_idx = (i + j + 3) % len(sample_clients)
+            staff_idx = (i + j + 3) % len(sample_staff)
+            sample_shifts.append({
+                "id": str(uuid.uuid4()),
+                "client_id": sample_clients[client_idx]["id"],
+                "client_name": sample_clients[client_idx]["full_name"],
+                "staff_id": sample_staff[staff_idx]["id"],
+                "staff_name": sample_staff[staff_idx]["full_name"],
+                "date": shift_date.isoformat(),
+                "start_time": f"1{3 + j}:00",
+                "end_time": f"1{7 + j}:00",
+                "service_type": service_types[(j + 3) % len(service_types)],
+                "status": "completed" if i < 7 else ("confirmed" if i < 14 else "pending"),
+                "notes": f"Afternoon {service_types[(j + 3) % len(service_types)].lower()} session",
+                "clock_in": f"{shift_date.isoformat()}T1{3 + j}:00:00" if i < 7 else None,
+                "clock_out": f"{shift_date.isoformat()}T1{7 + j}:03:00" if i < 7 else None,
+                "is_demo": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    
+    await db.shifts.insert_many(sample_shifts)
+    
+    # ==================== INVOICES ====================
+    sample_invoices = [
+        {
+            "id": str(uuid.uuid4()),
+            "invoice_number": "INV-2024-001",
+            "client_id": sample_clients[0]["id"],
+            "client_name": sample_clients[0]["full_name"],
+            "service_period_start": "2024-10-01",
+            "service_period_end": "2024-10-31",
+            "line_items": [
+                {"description": "Personal Care - Daily Living (01_011_0107_1_1)", "quantity": 40, "rate": 55.47, "amount": 2218.80},
+                {"description": "Community Access (04_104_0125_6_1)", "quantity": 20, "rate": 65.09, "amount": 1301.80}
+            ],
+            "total_amount": 3520.60,
+            "status": "paid",
+            "paid_date": "2024-11-15",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "invoice_number": "INV-2024-002",
+            "client_id": sample_clients[1]["id"],
+            "client_name": sample_clients[1]["full_name"],
+            "service_period_start": "2024-10-01",
+            "service_period_end": "2024-10-31",
+            "line_items": [
+                {"description": "Skill Development (15_037_0117_1_3)", "quantity": 24, "rate": 65.09, "amount": 1562.16},
+                {"description": "Employment Support (10_017_0102_5_1)", "quantity": 16, "rate": 70.75, "amount": 1132.00}
+            ],
+            "total_amount": 2694.16,
+            "status": "paid",
+            "paid_date": "2024-11-18",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "invoice_number": "INV-2024-003",
+            "client_id": sample_clients[2]["id"],
+            "client_name": sample_clients[2]["full_name"],
+            "service_period_start": "2024-11-01",
+            "service_period_end": "2024-11-30",
+            "line_items": [
+                {"description": "Personal Care - High Intensity (01_015_0104_1_1)", "quantity": 60, "rate": 62.17, "amount": 3730.20},
+                {"description": "Transport (02_051_0108_1_1)", "quantity": 12, "rate": 45.00, "amount": 540.00},
+                {"description": "Domestic Assistance (01_010_0101_1_1)", "quantity": 8, "rate": 52.71, "amount": 421.68}
+            ],
+            "total_amount": 4691.88,
+            "status": "sent",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "invoice_number": "INV-2024-004",
+            "client_id": sample_clients[3]["id"],
+            "client_name": sample_clients[3]["full_name"],
+            "service_period_start": "2024-11-01",
+            "service_period_end": "2024-11-30",
+            "line_items": [
+                {"description": "SIL - Active Night (01_835_0115_1_1)", "quantity": 240, "rate": 55.47, "amount": 13312.80},
+                {"description": "Community Access Group (04_102_0136_6_1)", "quantity": 16, "rate": 25.54, "amount": 408.64}
+            ],
+            "total_amount": 13721.44,
+            "status": "sent",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "invoice_number": "INV-2024-005",
+            "client_id": sample_clients[4]["id"],
+            "client_name": sample_clients[4]["full_name"],
+            "service_period_start": "2024-12-01",
+            "service_period_end": "2024-12-15",
+            "line_items": [
+                {"description": "Assistive Technology Support (05_053_0117_8_3)", "quantity": 8, "rate": 65.09, "amount": 520.72},
+                {"description": "Skill Development (15_037_0117_1_3)", "quantity": 12, "rate": 65.09, "amount": 781.08}
+            ],
+            "total_amount": 1301.80,
+            "status": "draft",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.invoices.insert_many(sample_invoices)
+    
+    # ==================== INCIDENTS ====================
+    sample_incidents = [
+        {
+            "id": str(uuid.uuid4()),
+            "incident_number": "INC-2024-001",
+            "client_id": sample_clients[0]["id"],
+            "client_name": sample_clients[0]["full_name"],
+            "reported_by": sample_staff[0]["full_name"],
+            "reporter_id": sample_staff[0]["id"],
+            "incident_date": (today - timedelta(days=12)).isoformat(),
+            "incident_time": "10:30",
+            "incident_type": "Minor Injury",
+            "location": "Client's Home - Bathroom",
+            "description": "Client slipped while getting out of the shower. Caught themselves on the grab rail but reported minor discomfort in left wrist.",
+            "immediate_action": "Checked client for injuries. Applied ice pack to wrist. Assisted client to seated position. Monitored for 30 minutes.",
+            "severity": "low",
+            "witnesses": "None",
+            "injuries": "Minor wrist strain - no medical attention required",
+            "status": "closed",
+            "follow_up_notes": "OT referral made for additional bathroom safety assessment. Non-slip mat installed.",
+            "closed_date": (today - timedelta(days=8)).isoformat(),
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "incident_number": "INC-2024-002",
+            "client_id": sample_clients[1]["id"],
+            "client_name": sample_clients[1]["full_name"],
+            "reported_by": sample_staff[1]["full_name"],
+            "reporter_id": sample_staff[1]["id"],
+            "incident_date": (today - timedelta(days=5)).isoformat(),
+            "incident_time": "14:15",
+            "incident_type": "Behavioural",
+            "location": "Community Centre",
+            "description": "Client became distressed during group activity when the regular room was changed due to maintenance. Client raised voice and paced for approximately 10 minutes.",
+            "immediate_action": "Calmly explained the situation. Moved to quiet space. Used visual schedule to show remaining activities. Offered sensory tools.",
+            "severity": "medium",
+            "witnesses": "Group facilitator - Maria Santos",
+            "injuries": "None",
+            "status": "under_review",
+            "follow_up_notes": "Behaviour support plan to be reviewed. Recommendation: Advance notice of any schedule changes.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "incident_number": "INC-2024-003",
+            "client_id": sample_clients[3]["id"],
+            "client_name": sample_clients[3]["full_name"],
+            "reported_by": sample_staff[7]["full_name"],
+            "reporter_id": sample_staff[7]["id"],
+            "incident_date": (today - timedelta(days=2)).isoformat(),
+            "incident_time": "22:45",
+            "incident_type": "Medication Error",
+            "location": "SIL House - River Road",
+            "description": "Evening medication was administered 30 minutes late due to staff handover delay.",
+            "immediate_action": "Medication administered immediately upon discovery. Client monitored for any adverse effects. Medical on-call notified.",
+            "severity": "medium",
+            "witnesses": "Night shift worker - Marcus Johnson",
+            "injuries": "None - no adverse effects observed",
+            "status": "open",
+            "follow_up_notes": "Medication administration audit scheduled. Handover procedures to be reviewed.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "incident_number": "INC-2024-004",
+            "client_id": sample_clients[5]["id"],
+            "client_name": sample_clients[5]["full_name"],
+            "reported_by": sample_staff[4]["full_name"],
+            "reporter_id": sample_staff[4]["id"],
+            "incident_date": (today - timedelta(days=1)).isoformat(),
+            "incident_time": "11:20",
+            "incident_type": "Property Damage",
+            "location": "SIL House - River Road",
+            "description": "Client accidentally knocked over television in common room during physiotherapy exercises.",
+            "immediate_action": "Ensured client safety. Cleared broken glass. Documented damage. Notified house coordinator.",
+            "severity": "low",
+            "witnesses": "William Brown (co-resident)",
+            "injuries": "None",
+            "status": "open",
+            "follow_up_notes": "Insurance claim to be lodged. Physio exercises to be conducted in designated space.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.incidents.insert_many(sample_incidents)
+    
+    # ==================== GOALS ====================
+    sample_goals = [
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[0]["id"],
+            "client_name": sample_clients[0]["full_name"],
+            "goal_title": "Improve independence with morning routine",
+            "description": "Emma will complete her morning routine (shower, dress, breakfast) with minimal verbal prompts only.",
+            "category": "Daily Living",
+            "target_date": "2025-06-30",
+            "progress": 65,
+            "status": "in_progress",
+            "milestones": [
+                {"title": "Select own clothes independently", "completed": True, "date": "2024-08-15"},
+                {"title": "Shower with setup assistance only", "completed": True, "date": "2024-10-01"},
+                {"title": "Prepare simple breakfast", "completed": False, "date": None}
+            ],
+            "notes": "Emma is making excellent progress. Now choosing clothes and showering independently.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[1]["id"],
+            "client_name": sample_clients[1]["full_name"],
+            "goal_title": "Obtain part-time employment",
+            "description": "Michael will secure and maintain part-time employment in an area of interest with job coach support.",
+            "category": "Employment",
+            "target_date": "2025-03-31",
+            "progress": 40,
+            "status": "in_progress",
+            "milestones": [
+                {"title": "Complete job readiness assessment", "completed": True, "date": "2024-06-20"},
+                {"title": "Create resume with support", "completed": True, "date": "2024-08-10"},
+                {"title": "Attend 3 job interviews", "completed": False, "date": None},
+                {"title": "Secure employment", "completed": False, "date": None}
+            ],
+            "notes": "Michael has expressed interest in retail or warehouse work. Resume completed and job searching begun.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[2]["id"],
+            "client_name": sample_clients[2]["full_name"],
+            "goal_title": "Increase community participation",
+            "description": "Sarah will attend at least 2 community activities per week independently using public transport.",
+            "category": "Social Participation",
+            "target_date": "2025-02-28",
+            "progress": 80,
+            "status": "in_progress",
+            "milestones": [
+                {"title": "Learn accessible transport routes", "completed": True, "date": "2024-05-15"},
+                {"title": "Join community art group", "completed": True, "date": "2024-07-01"},
+                {"title": "Attend advocacy meetings", "completed": True, "date": "2024-09-10"},
+                {"title": "Travel independently to activities", "completed": False, "date": None}
+            ],
+            "notes": "Sarah is now attending art group and disability advocacy meetings. Working on independent travel.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[3]["id"],
+            "client_name": sample_clients[3]["full_name"],
+            "goal_title": "Develop independent living skills",
+            "description": "James will learn to prepare 5 simple meals and manage basic household tasks in SIL accommodation.",
+            "category": "Daily Living",
+            "target_date": "2025-04-30",
+            "progress": 55,
+            "status": "in_progress",
+            "milestones": [
+                {"title": "Learn kitchen safety", "completed": True, "date": "2024-06-01"},
+                {"title": "Prepare 2 simple meals", "completed": True, "date": "2024-09-15"},
+                {"title": "Manage laundry independently", "completed": True, "date": "2024-11-01"},
+                {"title": "Prepare 5 meals independently", "completed": False, "date": None}
+            ],
+            "notes": "James can now make toast, sandwiches, and microwave meals. Working on stove-top cooking.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[4]["id"],
+            "client_name": sample_clients[4]["full_name"],
+            "goal_title": "Complete university degree",
+            "description": "Olivia will complete her Bachelor of Arts degree with assistive technology support.",
+            "category": "Education",
+            "target_date": "2025-11-30",
+            "progress": 70,
+            "status": "in_progress",
+            "milestones": [
+                {"title": "Set up assistive technology", "completed": True, "date": "2024-02-15"},
+                {"title": "Complete Year 2 subjects", "completed": True, "date": "2024-06-30"},
+                {"title": "Arrange internship", "completed": True, "date": "2024-10-01"},
+                {"title": "Complete final year", "completed": False, "date": None}
+            ],
+            "notes": "Olivia is excelling academically. Has secured internship with local media company.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[6]["id"],
+            "client_name": sample_clients[6]["full_name"],
+            "goal_title": "Transition to open employment",
+            "description": "Sophie will transition from school leaver program to supported employment within 12 months.",
+            "category": "Employment",
+            "target_date": "2025-06-30",
+            "progress": 25,
+            "status": "in_progress",
+            "milestones": [
+                {"title": "Complete work experience placement", "completed": True, "date": "2024-09-30"},
+                {"title": "Identify preferred work type", "completed": False, "date": None},
+                {"title": "Complete job applications", "completed": False, "date": None}
+            ],
+            "notes": "Sophie enjoyed her work experience at a local cafe. Exploring hospitality opportunities.",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.goals.insert_many(sample_goals)
+    
+    # ==================== MEDICATIONS ====================
+    sample_medications = [
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[0]["id"],
+            "client_name": sample_clients[0]["full_name"],
+            "medication_name": "Sodium Valproate",
+            "dosage": "500mg",
+            "frequency": "Twice daily",
+            "route": "Oral",
+            "prescriber": "Dr. Sarah Mitchell",
+            "pharmacy": "Chemist Warehouse Melbourne",
+            "purpose": "Seizure prevention",
+            "start_date": "2020-03-15",
+            "instructions": "Take with food. Do not crush tablets.",
+            "side_effects": "May cause drowsiness",
+            "is_prn": False,
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[2]["id"],
+            "client_name": sample_clients[2]["full_name"],
+            "medication_name": "Baclofen",
+            "dosage": "10mg",
+            "frequency": "Three times daily",
+            "route": "Oral",
+            "prescriber": "Dr. James Wong",
+            "pharmacy": "Priceline Pharmacy Brisbane",
+            "purpose": "Muscle spasticity",
+            "start_date": "2022-06-01",
+            "instructions": "Take at regular intervals. May take with or without food.",
+            "side_effects": "Drowsiness, dizziness",
+            "is_prn": False,
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[2]["id"],
+            "client_name": sample_clients[2]["full_name"],
+            "medication_name": "Paracetamol",
+            "dosage": "500mg",
+            "frequency": "As needed",
+            "route": "Oral",
+            "prescriber": "Dr. James Wong",
+            "pharmacy": "Priceline Pharmacy Brisbane",
+            "purpose": "Pain relief",
+            "start_date": "2022-06-01",
+            "instructions": "Maximum 8 tablets in 24 hours. Wait at least 4 hours between doses.",
+            "side_effects": "Rare if taken as directed",
+            "is_prn": True,
+            "prn_reason": "For pain or discomfort",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[3]["id"],
+            "client_name": sample_clients[3]["full_name"],
+            "medication_name": "Sertraline",
+            "dosage": "100mg",
+            "frequency": "Once daily (morning)",
+            "route": "Oral",
+            "prescriber": "Dr. Amanda Clarke - Psychiatrist",
+            "pharmacy": "Terry White Chemmart Perth",
+            "purpose": "Depression and anxiety",
+            "start_date": "2023-02-10",
+            "instructions": "Take in the morning with breakfast.",
+            "side_effects": "Nausea, headache initially",
+            "is_prn": False,
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[5]["id"],
+            "client_name": sample_clients[5]["full_name"],
+            "medication_name": "Levetiracetam",
+            "dosage": "750mg",
+            "frequency": "Twice daily",
+            "route": "Oral",
+            "prescriber": "Dr. Robert Chen - Neurologist",
+            "pharmacy": "Chemist Warehouse Perth",
+            "purpose": "Seizure prevention post-ABI",
+            "start_date": "2021-08-20",
+            "instructions": "Take at consistent times each day.",
+            "side_effects": "Fatigue, mood changes",
+            "is_prn": False,
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "client_id": sample_clients[7]["id"],
+            "client_name": sample_clients[7]["full_name"],
+            "medication_name": "Tecfidera",
+            "dosage": "240mg",
+            "frequency": "Twice daily",
+            "route": "Oral",
+            "prescriber": "Dr. Lisa Park - Neurologist",
+            "pharmacy": "Pharmacy 4 Less Hobart",
+            "purpose": "Multiple Sclerosis disease modification",
+            "start_date": "2023-04-01",
+            "instructions": "Take with food to reduce flushing. Do not crush or open capsule.",
+            "side_effects": "Flushing, stomach upset",
+            "is_prn": False,
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.medications.insert_many(sample_medications)
+    
+    # ==================== VEHICLES ====================
+    sample_vehicles = [
+        {
+            "id": str(uuid.uuid4()),
+            "registration": "ABC-123",
+            "make": "Toyota",
+            "model": "HiAce Commuter",
+            "year": 2022,
+            "owner_type": "organization",
+            "owner_name": "Sunshine Care Services",
+            "vehicle_type": "Wheelchair Accessible Van",
+            "capacity": 10,
+            "wheelchair_capacity": 2,
+            "color": "White",
+            "vin": "JTFSK22P300012345",
+            "insurance_expiry": "2025-06-30",
+            "registration_expiry": "2025-03-15",
+            "last_service_date": "2024-11-01",
+            "next_service_due": "2025-02-01",
+            "odometer": 45230,
+            "fuel_type": "Diesel",
+            "status": "active",
+            "assigned_location": "Main Office",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "registration": "XYZ-456",
+            "make": "Kia",
+            "model": "Carnival",
+            "year": 2023,
+            "owner_type": "organization",
+            "owner_name": "Sunshine Care Services",
+            "vehicle_type": "People Mover",
+            "capacity": 8,
+            "wheelchair_capacity": 0,
+            "color": "Silver",
+            "vin": "KNAPH81ABC7654321",
+            "insurance_expiry": "2025-08-15",
+            "registration_expiry": "2025-05-20",
+            "last_service_date": "2024-10-15",
+            "next_service_due": "2025-04-15",
+            "odometer": 28450,
+            "fuel_type": "Petrol",
+            "status": "active",
+            "assigned_location": "SIL House - River Road",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "registration": "DEF-789",
+            "make": "Hyundai",
+            "model": "Staria",
+            "year": 2024,
+            "owner_type": "organization",
+            "owner_name": "Sunshine Care Services",
+            "vehicle_type": "Wheelchair Accessible Van",
+            "capacity": 6,
+            "wheelchair_capacity": 1,
+            "color": "Blue",
+            "vin": "KMHXX41CBPU123456",
+            "insurance_expiry": "2025-12-01",
+            "registration_expiry": "2025-09-30",
+            "last_service_date": "2024-12-01",
+            "next_service_due": "2025-06-01",
+            "odometer": 12100,
+            "fuel_type": "Diesel",
+            "status": "active",
+            "assigned_location": "Main Office",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.vehicles.insert_many(sample_vehicles)
+    
+    # ==================== VEHICLE LOG ENTRIES ====================
+    sample_vehicle_logs = []
+    for i in range(20):
+        log_date = today - timedelta(days=i)
+        vehicle_idx = i % len(sample_vehicles)
+        staff_idx = i % len(sample_staff)
+        
+        sample_vehicle_logs.append({
+            "id": str(uuid.uuid4()),
+            "vehicle_id": sample_vehicles[vehicle_idx]["id"],
+            "vehicle_registration": sample_vehicles[vehicle_idx]["registration"],
+            "driver_id": sample_staff[staff_idx]["id"],
+            "driver_name": sample_staff[staff_idx]["full_name"],
+            "date": log_date.isoformat(),
+            "start_time": "09:00",
+            "end_time": "15:30",
+            "start_odometer": 45000 + (i * 50),
+            "end_odometer": 45000 + (i * 50) + 85,
+            "purpose": "Client transport and community access activities",
+            "fuel_added": 45.5 if i % 5 == 0 else 0,
+            "fuel_cost": 85.50 if i % 5 == 0 else 0,
+            "issues_reported": "Minor scratch on rear bumper - noted" if i == 5 else None,
+            "clients_transported": [sample_clients[i % len(sample_clients)]["full_name"]],
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    await db.vehicle_logs.insert_many(sample_vehicle_logs)
+    
+    # ==================== SIL HOUSES ====================
+    sample_sil_houses = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "River Road House",
+            "address": "23 River Road, Perth WA 6000",
+            "property_type": "4 Bedroom House",
+            "capacity": 4,
+            "current_occupancy": 2,
+            "house_manager": sample_staff[7]["full_name"],
+            "house_manager_id": sample_staff[7]["id"],
+            "phone": "08 9123 4567",
+            "email": "riverroad@sunshinecare.com.au",
+            "features": ["Wheelchair accessible", "Hoist in bathroom", "Sensory room", "Secure backyard"],
+            "residents": [sample_clients[3]["id"], sample_clients[5]["id"]],
+            "resident_names": [sample_clients[3]["full_name"], sample_clients[5]["full_name"]],
+            "support_ratio": "1:2 day, 1:2 active night",
+            "status": "active",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Garden View House",
+            "address": "15 Garden Street, Brisbane QLD 4000",
+            "property_type": "3 Bedroom House",
+            "capacity": 3,
+            "current_occupancy": 0,
+            "house_manager": sample_staff[5]["full_name"],
+            "house_manager_id": sample_staff[5]["id"],
+            "phone": "07 3123 4567",
+            "email": "gardenview@sunshinecare.com.au",
+            "features": ["Single level", "Accessible bathroom", "Large kitchen", "Close to public transport"],
+            "residents": [],
+            "resident_names": [],
+            "support_ratio": "1:3 day, sleepover night",
+            "status": "available",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.sil_houses.insert_many(sample_sil_houses)
+    
+    # ==================== LEAVE APPLICATIONS ====================
+    sample_leave = [
+        {
+            "id": str(uuid.uuid4()),
+            "staff_id": sample_staff[0]["id"],
+            "staff_name": sample_staff[0]["full_name"],
+            "leave_type": "Annual Leave",
+            "start_date": (today + timedelta(days=30)).isoformat(),
+            "end_date": (today + timedelta(days=37)).isoformat(),
+            "days_requested": 5,
+            "reason": "Family holiday",
+            "status": "approved",
+            "approved_by": "Rachel Green",
+            "approved_date": (today - timedelta(days=5)).isoformat(),
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "staff_id": sample_staff[1]["id"],
+            "staff_name": sample_staff[1]["full_name"],
+            "leave_type": "Sick Leave",
+            "start_date": (today - timedelta(days=3)).isoformat(),
+            "end_date": (today - timedelta(days=2)).isoformat(),
+            "days_requested": 2,
+            "reason": "Flu symptoms",
+            "status": "approved",
+            "approved_by": "Chris Taylor",
+            "approved_date": (today - timedelta(days=3)).isoformat(),
+            "medical_certificate": True,
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "staff_id": sample_staff[3]["id"],
+            "staff_name": sample_staff[3]["full_name"],
+            "leave_type": "Annual Leave",
+            "start_date": (today + timedelta(days=14)).isoformat(),
+            "end_date": (today + timedelta(days=21)).isoformat(),
+            "days_requested": 5,
+            "reason": "Personal travel",
+            "status": "pending",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "staff_id": sample_staff[4]["id"],
+            "staff_name": sample_staff[4]["full_name"],
+            "leave_type": "Personal Leave",
+            "start_date": (today + timedelta(days=7)).isoformat(),
+            "end_date": (today + timedelta(days=7)).isoformat(),
+            "days_requested": 1,
+            "reason": "Family commitment",
+            "status": "pending",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.leave_applications.insert_many(sample_leave)
+    
+    # ==================== COMPLIANCE ITEMS ====================
+    sample_compliance = [
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Policy",
+            "title": "Incident Management Policy",
+            "description": "Policy for reporting and managing incidents",
+            "category": "Quality & Safeguards",
+            "status": "current",
+            "effective_date": "2024-01-01",
+            "review_date": "2025-01-01",
+            "responsible_person": "Rachel Green",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Policy",
+            "title": "Medication Management Policy",
+            "description": "Guidelines for safe medication administration",
+            "category": "Clinical Governance",
+            "status": "current",
+            "effective_date": "2024-02-15",
+            "review_date": "2025-02-15",
+            "responsible_person": "Alex Morgan",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Audit",
+            "title": "NDIS Practice Standards Audit",
+            "description": "Annual compliance audit against NDIS Practice Standards",
+            "category": "Registration",
+            "status": "scheduled",
+            "due_date": "2025-03-15",
+            "responsible_person": "Rachel Green",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Training",
+            "title": "Restrictive Practices Training",
+            "description": "Mandatory training for all staff on restrictive practices",
+            "category": "Staff Development",
+            "status": "in_progress",
+            "due_date": "2025-01-31",
+            "completion_rate": 75,
+            "responsible_person": "Chris Taylor",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Registration",
+            "title": "NDIS Provider Registration Renewal",
+            "description": "Renewal of NDIS provider registration",
+            "category": "Registration",
+            "status": "current",
+            "effective_date": "2024-06-01",
+            "expiry_date": "2027-06-01",
+            "responsible_person": "Rachel Green",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Certificate",
+            "title": "Public Liability Insurance",
+            "description": "Annual public liability insurance certificate",
+            "category": "Insurance",
+            "status": "current",
+            "effective_date": "2024-07-01",
+            "expiry_date": "2025-07-01",
+            "responsible_person": "Rachel Green",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "item_type": "Audit",
+            "title": "Vehicle Safety Inspection",
+            "description": "Quarterly vehicle safety and compliance check",
+            "category": "WHS",
+            "status": "due_soon",
+            "due_date": (today + timedelta(days=14)).isoformat(),
+            "responsible_person": "Chris Taylor",
+            "is_demo": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    await db.compliance_items.insert_many(sample_compliance)
+    
+    # ==================== HR - TRAINING RECORDS ====================
+    sample_training = []
+    training_courses = [
+        ("First Aid & CPR", "External", 8),
+        ("Manual Handling", "Internal", 4),
+        ("Medication Administration", "External", 6),
+        ("Infection Control", "Internal", 2),
+        ("NDIS Worker Orientation", "Internal", 4),
+        ("Behaviour Support", "External", 8),
+        ("Mental Health First Aid", "External", 12)
+    ]
+    
+    for i, staff in enumerate(sample_staff):
+        for j, (course, provider, hours) in enumerate(training_courses[:4 + (i % 3)]):
+            sample_training.append({
+                "id": str(uuid.uuid4()),
+                "staff_id": staff["id"],
+                "staff_name": staff["full_name"],
+                "course_name": course,
+                "provider": provider,
+                "hours": hours,
+                "completion_date": (today - timedelta(days=90 + (j * 30))).isoformat(),
+                "expiry_date": (today + timedelta(days=365 - (j * 30))).isoformat() if "First Aid" in course else None,
+                "certificate_number": f"CERT-{2024}-{str(uuid.uuid4())[:8].upper()}",
+                "status": "completed",
+                "is_demo": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    
+    await db.training_records.insert_many(sample_training)
+    
+    # ==================== COMPANY SETTINGS (Demo) ====================
+    demo_company = {
+        "id": str(uuid.uuid4()),
+        "type": "company",
+        "company_name": "Sunshine Care Services",
+        "tagline": "Quality NDIS Support",
+        "abn": "12 345 678 901",
+        "email": "accounts@sunshinecare.com.au",
+        "phone": "1300 123 456",
+        "address": "Level 3, 456 Collins Street, Melbourne VIC 3000",
+        "website": "www.sunshinecare.com.au",
+        "bank_name": "Commonwealth Bank",
+        "bank_account_name": "Sunshine Care Services Pty Ltd",
+        "bank_bsb": "063-000",
+        "bank_account_number": "1234 5678",
+        "is_demo": True,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    existing_demo_company = await db.company_settings.find_one({"is_demo": True})
+    if not existing_demo_company:
+        await db.company_settings.insert_one(demo_company)
+    
+    return demo_user_id
+
+@api_router.post("/demo/access")
+async def get_demo_access():
+    """Get or create demo account access with comprehensive sample data"""
+    
+    # Ensure demo data exists
+    await create_demo_data()
+    
+    # Get demo user
+    demo_user = await db.users.find_one({"email": DEMO_EMAIL}, {"_id": 0})
+    
+    if not demo_user:
+        raise HTTPException(status_code=500, detail="Demo account creation failed")
+    
+    # Create access token
+    token = create_access_token(data={"sub": DEMO_EMAIL})
+    
+    # Get counts for welcome message
+    client_count = await db.clients.count_documents({"is_demo": True})
+    staff_count = await db.staff.count_documents({"is_demo": True})
+    shift_count = await db.shifts.count_documents({"is_demo": True})
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": demo_user["id"],
+            "email": demo_user["email"],
+            "full_name": demo_user["full_name"],
+            "role": demo_user["role"],
+            "is_demo": True
+        },
+        "demo_data": {
+            "clients": client_count,
+            "staff": staff_count,
+            "shifts": shift_count
+        },
+        "message": "Welcome to ProCare Hub! Explore our comprehensive NDIS management platform with sample data including clients, staff, rostering, invoicing, incident reports, goals, medications, vehicles, SIL houses, and more."
+    }
+
+@api_router.post("/demo/reset")
+async def reset_demo_data(current_user: dict = Depends(get_current_user)):
+    """Reset demo data to fresh state (admin only)"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Delete all demo data
+    collections_to_clear = [
+        "clients", "staff", "shifts", "invoices", "incidents", 
+        "goals", "medications", "vehicles", "vehicle_logs",
+        "sil_houses", "leave_applications", "compliance_items",
+        "training_records", "company_settings"
+    ]
+    
+    for collection in collections_to_clear:
+        await db[collection].delete_many({"is_demo": True})
+    
+    # Recreate demo data
+    await create_demo_data()
+    
+    return {"message": "Demo data reset successfully"}
+
 # Startup event
 @app.on_event("startup")
 async def startup():

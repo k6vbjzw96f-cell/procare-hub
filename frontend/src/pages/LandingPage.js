@@ -28,7 +28,8 @@ import {
   Play,
   Zap,
   HeadphonesIcon,
-  Globe
+  Globe,
+  Sparkles
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -39,6 +40,7 @@ const LandingPage = () => {
   const [showChat, setShowChat] = useState(false);
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [submittingDemo, setSubmittingDemo] = useState(false);
+  const [loadingDemo, setLoadingDemo] = useState(false);
   const [chatMessages, setChatMessages] = useState([
     { from: 'support', text: 'Hi! 👋 Welcome to ProCare Hub. How can I help you today?' }
   ]);
@@ -58,6 +60,29 @@ const LandingPage = () => {
         text: "Thanks for your message! Our team typically responds within 2 hours during business hours. You can also email us at support@procarehub.com.au or request a demo for a personalized walkthrough." 
       }]);
     }, 1000);
+  };
+
+  const handleExploreDemo = async () => {
+    setLoadingDemo(true);
+    
+    try {
+      const response = await axios.post(`${API}/demo/access`);
+      
+      // Store token and user data
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      toast.success(response.data.message);
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      window.location.reload();
+    } catch (error) {
+      console.error('Demo access error:', error);
+      toast.error('Failed to load demo. Please try again.');
+    }
+    
+    setLoadingDemo(false);
   };
 
   const handleDemoSubmit = async (e) => {
@@ -210,9 +235,19 @@ const LandingPage = () => {
                 Start Free Trial
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-              <Button size="lg" variant="outline" className="h-12 px-8 text-base" onClick={() => setShowDemoModal(true)}>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="h-12 px-8 text-base bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100" 
+                onClick={handleExploreDemo}
+                disabled={loadingDemo}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {loadingDemo ? 'Loading Demo...' : 'Try Live Demo'}
+              </Button>
+              <Button size="lg" variant="ghost" className="h-12 px-8 text-base text-slate-600" onClick={() => setShowDemoModal(true)}>
                 <Play className="w-4 h-4 mr-2" />
-                Request Demo
+                Request Guided Demo
               </Button>
             </div>
             <p className="mt-4 text-sm text-slate-500">
