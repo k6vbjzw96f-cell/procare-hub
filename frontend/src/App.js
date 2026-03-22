@@ -28,6 +28,7 @@ import Feedback from '@/pages/Feedback';
 import Documents from '@/pages/Documents';
 import TeamAvailability from '@/pages/TeamAvailability';
 import HR from '@/pages/HR';
+import Organisation from '@/pages/Organisation';
 import Layout from '@/components/Layout';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import * as serviceWorkerRegistration from '@/serviceWorkerRegistration';
@@ -153,6 +154,7 @@ function App() {
                     <Route path="/calendar" element={<ComplianceCalendar />} />
                     <Route path="/feedback" element={<Feedback />} />
                     <Route path="/documents" element={<Documents />} />
+                    <Route path="/organisation" element={<Organisation />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

@@ -43,9 +43,9 @@ const Layout = ({ children, user, onLogout }) => {
     { name: 'Leave', href: '/leave', icon: CalendarCheck, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Medication', href: '/medication', icon: Pill, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Goals', href: '/goals', icon: Target, roles: ['admin', 'coordinator', 'support_worker'] },
-    { name: 'Communication', href: '/communication', icon: MessageSquare, roles: ['admin', 'coordinator', 'support_worker'] },
+    { name: 'Team Chat', href: '/communication', icon: MessageSquare, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Vehicles', href: '/vehicles', icon: Car, roles: ['admin', 'coordinator', 'support_worker'] },
-    { name: 'SIL Houses', href: '/houses', icon: Home, roles: ['admin', 'coordinator'] },
+    { name: 'Locations', href: '/houses', icon: Home, roles: ['admin', 'coordinator'] },
     { name: 'Facilities', href: '/facilities', icon: Building2, roles: ['admin', 'coordinator'] },
     { name: 'Invoices', href: '/invoices', icon: FileText, roles: ['admin', 'coordinator'] },
     { name: 'Payments', href: '/payments', icon: CreditCard, roles: ['admin', 'coordinator'] },
@@ -54,6 +54,7 @@ const Layout = ({ children, user, onLogout }) => {
     { name: 'Compliance Calendar', href: '/calendar', icon: CalendarDays, roles: ['admin', 'coordinator'] },
     { name: 'Feedback', href: '/feedback', icon: ClipboardList, roles: ['admin', 'coordinator', 'support_worker'] },
     { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['admin', 'coordinator'] },
+    { name: 'Organisation', href: '/organisation', icon: Building2, roles: ['admin'] },
     { name: 'Settings', href: '/settings', icon: Settings, roles: ['admin', 'coordinator', 'support_worker'] },
   ];
 

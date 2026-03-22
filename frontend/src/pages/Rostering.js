@@ -17,12 +17,30 @@ const getAuthHeader = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
 });
 
+// Service type color mapping
+const SERVICE_COLORS = {
+  'Personal Care': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
+  'Community Access': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
+  'Skill Development': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
+  'Transport': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
+  'Domestic Assistance': { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200' },
+  'Social Support': { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200' },
+  'SIL Support': { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200' },
+  'Respite': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
+};
+
 const Rostering = () => {
   const [shifts, setShifts] = useState([]);
   const [clients, setClients] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [brandColors, setBrandColors] = useState({
+    primary_color: '#10b981',
+    secondary_color: '#14b8a6',
+    accent_color: '#f59e0b',
+    roster_color_scheme: 'default',
+  });
   const [formData, setFormData] = useState({
     client_id: '',
     staff_id: '',
@@ -36,6 +54,7 @@ const Rostering = () => {
 
   useEffect(() => {
     fetchData();
+    fetchBrandSettings();
   }, []);
 
   const fetchData = async () => {
@@ -52,6 +71,43 @@ const Rostering = () => {
       toast.error('Failed to load data');
     }
     setLoading(false);
+  };
+
+  const fetchBrandSettings = async () => {
+    try {
+      const response = await axios.get(`${API}/company-settings`, getAuthHeader());
+      if (response.data?.brand_settings) {
+        setBrandColors(response.data.brand_settings);
+      }
+    } catch (error) {
+      // Use defaults
+    }
+  };
+
+  const getShiftColor = (shift) => {
+    const scheme = brandColors.roster_color_scheme || 'default';
+    
+    if (scheme === 'brand') {
+      return {
+        backgroundColor: brandColors.primary_color + '20',
+        borderColor: brandColors.primary_color,
+        color: brandColors.primary_color,
+      };
+    }
+    
+    if (scheme === 'status') {
+      const statusColors = {
+        scheduled: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-l-blue-500' },
+        confirmed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-l-emerald-500' },
+        completed: { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-l-slate-500' },
+        cancelled: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-l-rose-500' },
+        pending: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-l-amber-500' },
+      };
+      return statusColors[shift.status] || statusColors.scheduled;
+    }
+    
+    // Default: service type colors
+    return SERVICE_COLORS[shift.service_type] || { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' };
   };
 
   const handleSubmit = async (e) => {

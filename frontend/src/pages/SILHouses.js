@@ -158,20 +158,20 @@ const SILHouses = () => {
     <div className="space-y-6" data-testid="sil-houses-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-manrope font-bold text-primary-900 mb-2">SIL Houses</h1>
-          <p className="text-slate-600">Manage Supported Independent Living properties</p>
+          <h1 className="text-4xl font-manrope font-bold text-primary-900 mb-2">Locations</h1>
+          <p className="text-slate-600">Manage SIL and supported accommodation locations</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button data-testid="add-house-button">
               <Plus className="w-4 h-4 mr-2" />
-              Add House
+              Add Location
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle>Add New SIL House</DialogTitle>
-              <DialogDescription>Register a new property for SIL services</DialogDescription>
+              <DialogTitle>Add New Location</DialogTitle>
+              <DialogDescription>Register a new SIL or supported accommodation location</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

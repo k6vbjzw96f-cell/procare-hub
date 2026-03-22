@@ -189,8 +189,8 @@ const Communication = () => {
     <div className="space-y-6" data-testid="communication-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-manrope font-bold text-primary-900 mb-2">Communication Hub</h1>
-          <p className="text-slate-600">Real-time messaging between team members</p>
+          <h1 className="text-4xl font-manrope font-bold text-primary-900 mb-2">Team Chat</h1>
+          <p className="text-slate-600">Message your managers, coordinators, and team members</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
