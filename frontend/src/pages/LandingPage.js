@@ -362,54 +362,96 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-16 sm:py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
-              Everything You Need to Succeed
+      {/* Features Section - Beautiful Redesign */}
+      <section id="features" className="py-20 sm:py-28 bg-gradient-to-b from-white via-slate-50/50 to-white relative overflow-hidden">
+        {/* Decorative background elements */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="text-center mb-16">
+            <Badge className="mb-4 bg-gradient-to-r from-primary/10 to-emerald-100 text-primary border-0">
+              Powerful Features
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-4">
+              Everything You Need to{' '}
+              <span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">Succeed</span>
             </h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
               Purpose-built for NDIS providers, with features that actually make your life easier.
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          
+          {/* Feature Cards Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             {features.map((feature, index) => (
-              <Card key={index} className="border-slate-200 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 group cursor-pointer" onClick={() => navigate('/login')}>
-                <CardHeader>
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-emerald-100 flex items-center justify-center mb-4 group-hover:from-primary group-hover:to-emerald-600 transition-all duration-300">
-                    <feature.icon className="w-7 h-7 text-primary group-hover:text-white transition-colors" />
+              <div
+                key={index}
+                className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-2xl hover:shadow-primary/10 border border-slate-100 hover:border-primary/20 transition-all duration-500 cursor-pointer overflow-hidden"
+                onClick={() => navigate('/login')}
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                {/* Hover gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                
+                {/* Icon container with beautiful gradient */}
+                <div className="relative mb-5">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary via-primary to-emerald-600 flex items-center justify-center shadow-lg shadow-primary/25 group-hover:shadow-xl group-hover:shadow-primary/30 group-hover:scale-110 transition-all duration-500">
+                    <feature.icon className="w-7 h-7 text-white" strokeWidth={1.5} />
                   </div>
-                  <CardTitle className="text-lg group-hover:text-primary transition-colors">{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-slate-600 text-sm leading-relaxed">{feature.description}</p>
-                </CardContent>
-              </Card>
+                  {/* Decorative ring */}
+                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-primary/20 to-emerald-500/20 opacity-0 group-hover:opacity-100 blur transition-opacity duration-500" />
+                </div>
+                
+                {/* Content */}
+                <div className="relative">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2 group-hover:text-primary transition-colors duration-300">
+                    {feature.title}
+                  </h3>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+                
+                {/* Learn more link that appears on hover */}
+                <div className="relative mt-4 flex items-center text-primary font-medium text-sm opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                  Learn more
+                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
             ))}
           </div>
 
-          {/* Additional Features Row - Clickable */}
-          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Additional Features Row - Beautiful Cards */}
+          <div className="mt-16 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
-              { key: 'mobile', icon: Smartphone, text: 'Mobile App (iOS & Android)' },
-              { key: 'multiLocation', icon: Building2, text: 'Multi-Location Support' },
-              { key: 'sso', icon: Globe, text: 'SSO Integration' },
-              { key: 'support', icon: HeadphonesIcon, text: '24/7 Australian Support' }
+              { key: 'mobile', icon: Smartphone, text: 'Mobile App', subtext: 'iOS & Android', color: 'from-blue-500 to-blue-600' },
+              { key: 'multiLocation', icon: Building2, text: 'Multi-Location', subtext: 'Centralised Control', color: 'from-violet-500 to-violet-600' },
+              { key: 'sso', icon: Globe, text: 'SSO Integration', subtext: 'Enterprise Security', color: 'from-amber-500 to-orange-500' },
+              { key: 'support', icon: HeadphonesIcon, text: '24/7 Support', subtext: 'Australian Team', color: 'from-emerald-500 to-teal-600' }
             ].map((item, i) => (
               <button
                 key={i}
                 onClick={() => setActiveFeatureModal(item.key)}
-                className="group flex items-center gap-3 p-5 bg-gradient-to-br from-primary/5 to-emerald-50 rounded-xl border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 cursor-pointer text-left"
+                className="group relative bg-white rounded-2xl p-5 shadow-sm hover:shadow-xl border border-slate-100 hover:border-transparent transition-all duration-500 text-left overflow-hidden"
               >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
-                  <item.icon className="w-5 h-5 text-primary group-hover:text-white transition-colors" />
+                {/* Gradient border effect on hover */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                <div className="absolute inset-[2px] bg-white rounded-[14px] group-hover:bg-gradient-to-br group-hover:from-white group-hover:to-slate-50 transition-all duration-500" />
+                
+                <div className="relative flex items-center gap-4">
+                  {/* Colorful icon */}
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
+                    <item.icon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                  </div>
+                  
+                  <div className="flex-1">
+                    <span className="block font-semibold text-slate-900 group-hover:text-slate-900">{item.text}</span>
+                    <span className="text-xs text-slate-500">{item.subtext}</span>
+                  </div>
+                  
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
                 </div>
-                <div className="flex-1">
-                  <span className="text-sm font-semibold text-slate-700 group-hover:text-primary transition-colors">{item.text}</span>
-                  <p className="text-xs text-slate-500 mt-0.5">Click to learn more</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
               </button>
             ))}
           </div>
