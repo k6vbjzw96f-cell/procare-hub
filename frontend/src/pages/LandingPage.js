@@ -29,7 +29,13 @@ import {
   Zap,
   HeadphonesIcon,
   Globe,
-  Sparkles
+  Sparkles,
+  DollarSign,
+  Lock,
+  CheckCircle2,
+  MapPin,
+  Phone,
+  Mail
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -41,11 +47,80 @@ const LandingPage = () => {
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [submittingDemo, setSubmittingDemo] = useState(false);
   const [loadingDemo, setLoadingDemo] = useState(false);
+  const [activeFeatureModal, setActiveFeatureModal] = useState(null);
   const [chatMessages, setChatMessages] = useState([
     { from: 'support', text: 'Hi! 👋 Welcome to ProCare Hub. How can I help you today?' }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [demoForm, setDemoForm] = useState({ name: '', email: '', company: '', phone: '', message: '' });
+
+  // Additional feature details for modals
+  const additionalFeatures = {
+    mobile: {
+      icon: Smartphone,
+      title: 'Mobile App (iOS & Android)',
+      subtitle: 'Work from anywhere with our native mobile apps',
+      features: [
+        'Clock in/out with GPS verification',
+        'View and manage your roster on the go',
+        'Access client information offline',
+        'Submit incident reports instantly',
+        'Receive real-time shift notifications',
+        'Capture photos and attach to notes',
+        'Complete digital signatures',
+        'Push notifications for schedule changes'
+      ],
+      cta: 'Download from App Store and Google Play'
+    },
+    multiLocation: {
+      icon: Building2,
+      title: 'Multi-Location Support',
+      subtitle: 'Manage all your sites from one platform',
+      features: [
+        'Centralized dashboard for all locations',
+        'Location-specific rosters and staff',
+        'Compare performance across sites',
+        'Consolidated reporting and analytics',
+        'Location-based compliance tracking',
+        'Transfer clients between locations',
+        'Site-specific settings and configurations',
+        'Regional manager access controls'
+      ],
+      cta: 'Perfect for organisations with multiple service sites'
+    },
+    sso: {
+      icon: Globe,
+      title: 'SSO Integration',
+      subtitle: 'Enterprise-grade single sign-on security',
+      features: [
+        'Microsoft Azure AD integration',
+        'Google Workspace support',
+        'SAML 2.0 compatibility',
+        'One-click login for staff',
+        'Centralized user provisioning',
+        'Automatic role assignment',
+        'Enhanced security compliance',
+        'Reduced password fatigue'
+      ],
+      cta: 'Seamless authentication for your entire team'
+    },
+    support: {
+      icon: HeadphonesIcon,
+      title: '24/7 Australian Support',
+      subtitle: 'Local support team ready to help',
+      features: [
+        'Australian-based support team',
+        'Phone, email, and chat support',
+        'Average response time under 2 hours',
+        'Dedicated account manager (Pro+)',
+        'Free onboarding and training',
+        'Regular check-ins and health checks',
+        'Priority support for urgent issues',
+        'Extensive knowledge base and tutorials'
+      ],
+      cta: 'Real humans, not chatbots'
+    }
+  };
 
   const handleSendChat = () => {
     if (!chatInput.trim()) return;
@@ -183,7 +258,8 @@ const LandingPage = () => {
     { icon: FileText, title: 'Invoicing & Billing', description: 'NDIS-compliant invoicing with automatic line item generation and payment tracking.' },
     { icon: Shield, title: 'Compliance Tracking', description: 'Stay audit-ready with incident reporting, certifications, and compliance calendars.' },
     { icon: BarChart3, title: 'Reports & Analytics', description: 'Actionable insights with customizable reports for NDIS audits and business decisions.' },
-    { icon: Clock, title: 'Time & Attendance', description: 'Digital clock-in/out with GPS verification and automated timesheet generation.' }
+    { icon: Clock, title: 'Time & Attendance', description: 'Digital clock-in/out with GPS verification and automated timesheet generation.' },
+    { icon: DollarSign, title: 'Funding Management', description: 'Track NDIS budgets, monitor plan utilisation, and ensure funding is allocated efficiently across support categories.' }
   ];
 
   const testimonials = [
@@ -297,34 +373,44 @@ const LandingPage = () => {
               Purpose-built for NDIS providers, with features that actually make your life easier.
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {features.map((feature, index) => (
-              <Card key={index} className="border-slate-200 hover:border-primary/50 hover:shadow-lg transition-all duration-300">
+              <Card key={index} className="border-slate-200 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 group cursor-pointer" onClick={() => navigate('/login')}>
                 <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                    <feature.icon className="w-6 h-6 text-primary" />
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-emerald-100 flex items-center justify-center mb-4 group-hover:from-primary group-hover:to-emerald-600 transition-all duration-300">
+                    <feature.icon className="w-7 h-7 text-primary group-hover:text-white transition-colors" />
                   </div>
-                  <CardTitle className="text-xl">{feature.title}</CardTitle>
+                  <CardTitle className="text-lg group-hover:text-primary transition-colors">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-slate-600">{feature.description}</p>
+                  <p className="text-slate-600 text-sm leading-relaxed">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {/* Additional Features Row */}
+          {/* Additional Features Row - Clickable */}
           <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { icon: Smartphone, text: 'Mobile App (iOS & Android)' },
-              { icon: Building2, text: 'Multi-Location Support' },
-              { icon: Globe, text: 'SSO Integration' },
-              { icon: HeadphonesIcon, text: '24/7 Australian Support' }
+              { key: 'mobile', icon: Smartphone, text: 'Mobile App (iOS & Android)' },
+              { key: 'multiLocation', icon: Building2, text: 'Multi-Location Support' },
+              { key: 'sso', icon: Globe, text: 'SSO Integration' },
+              { key: 'support', icon: HeadphonesIcon, text: '24/7 Australian Support' }
             ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg">
-                <item.icon className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium text-slate-700">{item.text}</span>
-              </div>
+              <button
+                key={i}
+                onClick={() => setActiveFeatureModal(item.key)}
+                className="group flex items-center gap-3 p-5 bg-gradient-to-br from-primary/5 to-emerald-50 rounded-xl border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 cursor-pointer text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
+                  <item.icon className="w-5 h-5 text-primary group-hover:text-white transition-colors" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm font-semibold text-slate-700 group-hover:text-primary transition-colors">{item.text}</span>
+                  <p className="text-xs text-slate-500 mt-0.5">Click to learn more</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              </button>
             ))}
           </div>
         </div>
@@ -556,6 +642,56 @@ const LandingPage = () => {
           </Button>
         )}
       </div>
+
+      {/* Feature Detail Modal */}
+      <Dialog open={!!activeFeatureModal} onOpenChange={(open) => !open && setActiveFeatureModal(null)}>
+        <DialogContent className="sm:max-w-lg">
+          {activeFeatureModal && additionalFeatures[activeFeatureModal] && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center shadow-lg">
+                    {(() => {
+                      const IconComponent = additionalFeatures[activeFeatureModal].icon;
+                      return <IconComponent className="w-6 h-6 text-white" />;
+                    })()}
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl">{additionalFeatures[activeFeatureModal].title}</DialogTitle>
+                    <DialogDescription className="text-sm mt-0.5">
+                      {additionalFeatures[activeFeatureModal].subtitle}
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+              <div className="mt-4">
+                <ul className="space-y-3">
+                  {additionalFeatures[activeFeatureModal].features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      </div>
+                      <span className="text-slate-600 text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-emerald-50 rounded-lg border border-primary/10">
+                  <p className="text-sm font-medium text-primary">{additionalFeatures[activeFeatureModal].cta}</p>
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <Button className="flex-1" onClick={() => { setActiveFeatureModal(null); navigate('/login'); }}>
+                    Start Free Trial
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                  <Button variant="outline" onClick={() => { setActiveFeatureModal(null); setShowDemoModal(true); }}>
+                    Request Demo
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Demo Request Modal */}
       <Dialog open={showDemoModal} onOpenChange={setShowDemoModal}>
