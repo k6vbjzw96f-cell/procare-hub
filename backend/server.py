@@ -386,6 +386,75 @@ class CaseNoteCreate(BaseModel):
     scheduled_time: Optional[str] = None
     reason_missed: Optional[str] = None
 
+# Service Booking Models
+class ServiceBooking(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_id: str
+    client_name: str
+    service_type: str
+    preferred_date: str
+    preferred_time: Optional[str] = None
+    duration_hours: float = 2.0
+    frequency: str = "one-time"  # one-time, weekly, fortnightly, monthly
+    location: Optional[str] = None
+    special_requirements: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "requested"  # requested, approved, scheduled, completed, cancelled
+    assigned_staff_id: Optional[str] = None
+    assigned_staff_name: Optional[str] = None
+    scheduled_date: Optional[str] = None
+    scheduled_time: Optional[str] = None
+    requested_by: str
+    requested_by_name: str
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+class ServiceBookingCreate(BaseModel):
+    client_id: str
+    service_type: str
+    preferred_date: str
+    preferred_time: Optional[str] = None
+    duration_hours: float = 2.0
+    frequency: str = "one-time"
+    location: Optional[str] = None
+    special_requirements: Optional[str] = None
+    notes: Optional[str] = None
+
+# Resource Library Models
+class Resource(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    category: str  # guides, fact-sheets, videos, faqs, forms, external-links
+    content_type: str  # article, pdf, video, link, faq
+    content: Optional[str] = None  # For articles/FAQs
+    url: Optional[str] = None  # For external links/videos
+    file_url: Optional[str] = None  # For uploaded files
+    thumbnail_url: Optional[str] = None
+    tags: List[str] = []
+    is_featured: bool = False
+    is_published: bool = True
+    view_count: int = 0
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+class ResourceCreate(BaseModel):
+    title: str
+    description: str
+    category: str
+    content_type: str
+    content: Optional[str] = None
+    url: Optional[str] = None
+    file_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    tags: List[str] = []
+    is_featured: bool = False
+
 class HourLog(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -2294,6 +2363,308 @@ async def get_case_notes_summary(current_user: User = Depends(get_current_user))
     }
 
 # ==================== END CASE NOTES ====================
+
+# ==================== SERVICE BOOKING ====================
+
+@api_router.post("/service-bookings", response_model=ServiceBooking)
+async def create_service_booking(booking_data: ServiceBookingCreate, current_user: User = Depends(get_current_user)):
+    """Create a new service booking request"""
+    client = await db.clients.find_one({"id": booking_data.client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    booking_dict = booking_data.model_dump()
+    booking_dict['client_name'] = client['full_name']
+    booking_dict['requested_by'] = current_user.id
+    booking_dict['requested_by_name'] = current_user.full_name
+    booking_dict['status'] = 'requested'
+    
+    booking = ServiceBooking(**booking_dict)
+    doc = booking.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    if doc.get('updated_at'):
+        doc['updated_at'] = doc['updated_at'].isoformat()
+    await db.service_bookings.insert_one(doc)
+    
+    # Notify coordinators
+    coordinators = await db.users.find({"role": {"$in": ["admin", "coordinator"]}}, {"_id": 0}).to_list(50)
+    for coord in coordinators:
+        await create_notification(
+            coord['id'],
+            f"New Service Request: {booking_data.service_type}",
+            f"{client['full_name']} has requested {booking_data.service_type} on {booking_data.preferred_date}",
+            "booking",
+            "/service-bookings",
+            should_send_email=True
+        )
+    
+    return booking
+
+@api_router.get("/service-bookings", response_model=List[ServiceBooking])
+async def get_service_bookings(
+    status: Optional[str] = None,
+    client_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Get service bookings with optional filters"""
+    query = {}
+    
+    if status:
+        query["status"] = status
+    if client_id:
+        query["client_id"] = client_id
+    
+    bookings = await db.service_bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    for b in bookings:
+        if isinstance(b.get('created_at'), str):
+            b['created_at'] = datetime.fromisoformat(b['created_at'])
+        if b.get('updated_at') and isinstance(b['updated_at'], str):
+            b['updated_at'] = datetime.fromisoformat(b['updated_at'])
+    return bookings
+
+@api_router.get("/service-bookings/{booking_id}", response_model=ServiceBooking)
+async def get_service_booking(booking_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific service booking"""
+    booking = await db.service_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if isinstance(booking.get('created_at'), str):
+        booking['created_at'] = datetime.fromisoformat(booking['created_at'])
+    if booking.get('updated_at') and isinstance(booking['updated_at'], str):
+        booking['updated_at'] = datetime.fromisoformat(booking['updated_at'])
+    
+    return ServiceBooking(**booking)
+
+@api_router.put("/service-bookings/{booking_id}")
+async def update_service_booking(booking_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
+    """Update a service booking"""
+    booking = await db.service_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    await db.service_bookings.update_one({"id": booking_id}, {"$set": update_data})
+    
+    return {"message": "Booking updated"}
+
+@api_router.put("/service-bookings/{booking_id}/approve")
+async def approve_service_booking(booking_id: str, staff_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Approve a service booking request"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    booking = await db.service_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    update_data = {
+        "status": "approved",
+        "approved_by": current_user.full_name,
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    if staff_id:
+        staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+        if staff:
+            update_data["assigned_staff_id"] = staff_id
+            update_data["assigned_staff_name"] = staff['full_name']
+    
+    await db.service_bookings.update_one({"id": booking_id}, {"$set": update_data})
+    
+    return {"message": "Booking approved"}
+
+@api_router.put("/service-bookings/{booking_id}/schedule")
+async def schedule_service_booking(booking_id: str, scheduled_date: str, scheduled_time: str, staff_id: str, current_user: User = Depends(get_current_user)):
+    """Schedule an approved booking"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    booking = await db.service_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    staff = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    
+    # Create the actual shift
+    client = await db.clients.find_one({"id": booking['client_id']}, {"_id": 0})
+    shift = Shift(
+        client_id=booking['client_id'],
+        client_name=client['full_name'],
+        staff_id=staff_id,
+        staff_name=staff['full_name'],
+        shift_date=scheduled_date,
+        start_time=scheduled_time,
+        end_time="",  # Will be calculated
+        duration_hours=booking['duration_hours'],
+        service_type=booking['service_type'],
+        notes=booking.get('notes', '')
+    )
+    doc = shift.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.shifts.insert_one(doc)
+    
+    # Update booking
+    await db.service_bookings.update_one({"id": booking_id}, {"$set": {
+        "status": "scheduled",
+        "scheduled_date": scheduled_date,
+        "scheduled_time": scheduled_time,
+        "assigned_staff_id": staff_id,
+        "assigned_staff_name": staff['full_name'],
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }})
+    
+    return {"message": "Booking scheduled", "shift_id": shift.id}
+
+@api_router.put("/service-bookings/{booking_id}/cancel")
+async def cancel_service_booking(booking_id: str, current_user: User = Depends(get_current_user)):
+    """Cancel a service booking"""
+    booking = await db.service_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    await db.service_bookings.update_one({"id": booking_id}, {"$set": {
+        "status": "cancelled",
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }})
+    
+    return {"message": "Booking cancelled"}
+
+@api_router.delete("/service-bookings/{booking_id}")
+async def delete_service_booking(booking_id: str, current_user: User = Depends(get_current_user)):
+    """Delete a service booking"""
+    check_permission(current_user, ["admin"])
+    
+    result = await db.service_bookings.delete_one({"id": booking_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    return {"message": "Booking deleted"}
+
+@api_router.get("/service-bookings/stats/summary")
+async def get_service_bookings_summary(current_user: User = Depends(get_current_user)):
+    """Get summary statistics for service bookings"""
+    all_bookings = await db.service_bookings.find({}, {"_id": 0}).to_list(1000)
+    
+    return {
+        "total": len(all_bookings),
+        "requested": len([b for b in all_bookings if b['status'] == 'requested']),
+        "approved": len([b for b in all_bookings if b['status'] == 'approved']),
+        "scheduled": len([b for b in all_bookings if b['status'] == 'scheduled']),
+        "completed": len([b for b in all_bookings if b['status'] == 'completed']),
+        "cancelled": len([b for b in all_bookings if b['status'] == 'cancelled']),
+    }
+
+# ==================== END SERVICE BOOKING ====================
+
+# ==================== RESOURCE LIBRARY ====================
+
+@api_router.post("/resources", response_model=Resource)
+async def create_resource(resource_data: ResourceCreate, current_user: User = Depends(get_current_user)):
+    """Create a new resource"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    resource_dict = resource_data.model_dump()
+    resource_dict['created_by'] = current_user.full_name
+    resource_dict['is_published'] = True
+    
+    resource = Resource(**resource_dict)
+    doc = resource.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    if doc.get('updated_at'):
+        doc['updated_at'] = doc['updated_at'].isoformat()
+    await db.resources.insert_one(doc)
+    
+    return resource
+
+@api_router.get("/resources", response_model=List[Resource])
+async def get_resources(
+    category: Optional[str] = None,
+    content_type: Optional[str] = None,
+    search: Optional[str] = None,
+    featured_only: bool = False,
+    current_user: User = Depends(get_current_user)
+):
+    """Get resources with optional filters"""
+    query = {"is_published": True}
+    
+    if category:
+        query["category"] = category
+    if content_type:
+        query["content_type"] = content_type
+    if featured_only:
+        query["is_featured"] = True
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+            {"tags": {"$regex": search, "$options": "i"}}
+        ]
+    
+    resources = await db.resources.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for r in resources:
+        if isinstance(r.get('created_at'), str):
+            r['created_at'] = datetime.fromisoformat(r['created_at'])
+        if r.get('updated_at') and isinstance(r['updated_at'], str):
+            r['updated_at'] = datetime.fromisoformat(r['updated_at'])
+    return resources
+
+@api_router.get("/resources/{resource_id}", response_model=Resource)
+async def get_resource(resource_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific resource and increment view count"""
+    resource = await db.resources.find_one({"id": resource_id}, {"_id": 0})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    # Increment view count
+    await db.resources.update_one({"id": resource_id}, {"$inc": {"view_count": 1}})
+    
+    if isinstance(resource.get('created_at'), str):
+        resource['created_at'] = datetime.fromisoformat(resource['created_at'])
+    if resource.get('updated_at') and isinstance(resource['updated_at'], str):
+        resource['updated_at'] = datetime.fromisoformat(resource['updated_at'])
+    
+    return Resource(**resource)
+
+@api_router.put("/resources/{resource_id}")
+async def update_resource(resource_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
+    """Update a resource"""
+    check_permission(current_user, ["admin", "coordinator"])
+    
+    resource = await db.resources.find_one({"id": resource_id}, {"_id": 0})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    await db.resources.update_one({"id": resource_id}, {"$set": update_data})
+    
+    return {"message": "Resource updated"}
+
+@api_router.delete("/resources/{resource_id}")
+async def delete_resource(resource_id: str, current_user: User = Depends(get_current_user)):
+    """Delete a resource"""
+    check_permission(current_user, ["admin"])
+    
+    result = await db.resources.delete_one({"id": resource_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    return {"message": "Resource deleted"}
+
+@api_router.get("/resources/categories/list")
+async def get_resource_categories(current_user: User = Depends(get_current_user)):
+    """Get list of resource categories with counts"""
+    all_resources = await db.resources.find({"is_published": True}, {"_id": 0, "category": 1}).to_list(500)
+    
+    categories = {}
+    for r in all_resources:
+        cat = r.get('category', 'other')
+        categories[cat] = categories.get(cat, 0) + 1
+    
+    return categories
+
+# ==================== END RESOURCE LIBRARY ====================
 
 # Hour Logging Routes
 @api_router.post("/hours", response_model=HourLog)

@@ -31,6 +31,8 @@ import HR from '@/pages/HR';
 import Organisation from '@/pages/Organisation';
 import Funding from '@/pages/Funding';
 import CaseNotes from '@/pages/CaseNotes';
+import ServiceBookings from '@/pages/ServiceBookings';
+import Resources from '@/pages/Resources';
 import Layout from '@/components/Layout';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import * as serviceWorkerRegistration from '@/serviceWorkerRegistration';
@@ -159,6 +161,8 @@ function App() {
                     <Route path="/organisation" element={<Organisation />} />
                     <Route path="/funding" element={<Funding />} />
                     <Route path="/case-notes" element={<CaseNotes />} />
+                    <Route path="/service-bookings" element={<ServiceBookings />} />
+                    <Route path="/resources" element={<Resources />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>
