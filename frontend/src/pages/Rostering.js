@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -157,6 +158,169 @@ const Rostering = () => {
     });
   };
 
+  // Export to Excel (CSV format)
+  const exportToExcel = () => {
+    if (shifts.length === 0) {
+      toast.error('No shifts to export');
+      return;
+    }
+
+    // CSV headers
+    const headers = ['Date', 'Start Time', 'End Time', 'Client', 'Staff', 'Service Type', 'Duration (hrs)', 'Status', 'Notes'];
+    
+    // CSV rows
+    const rows = shifts.map(shift => [
+      shift.shift_date,
+      shift.start_time,
+      shift.end_time,
+      shift.client_name,
+      shift.staff_name,
+      shift.service_type,
+      shift.duration_hours,
+      shift.status,
+      shift.notes || ''
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `roster_schedule_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Roster exported to Excel (CSV)');
+  };
+
+  // Export to PDF
+  const exportToPDF = () => {
+    if (shifts.length === 0) {
+      toast.error('No shifts to export');
+      return;
+    }
+
+    // Create a printable HTML document
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Roster Schedule - ProCare Hub</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; color: #1e293b; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #184536; padding-bottom: 20px; }
+          .header h1 { color: #184536; margin: 0 0 5px 0; font-size: 28px; }
+          .header p { color: #64748b; margin: 0; font-size: 14px; }
+          .meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 12px; color: #64748b; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { background-color: #184536; color: white; padding: 12px 8px; text-align: left; font-size: 12px; font-weight: 600; }
+          td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+          .status { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 500; }
+          .status-scheduled { background-color: #dbeafe; color: #1d4ed8; }
+          .status-completed { background-color: #dcfce7; color: #15803d; }
+          .status-cancelled { background-color: #fee2e2; color: #dc2626; }
+          .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+          .summary { margin-top: 30px; padding: 15px; background-color: #f1f5f9; border-radius: 8px; }
+          .summary h3 { margin: 0 0 10px 0; font-size: 14px; color: #184536; }
+          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+          .summary-item { text-align: center; }
+          .summary-value { font-size: 20px; font-weight: bold; color: #184536; }
+          .summary-label { font-size: 11px; color: #64748b; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Roster Schedule</h1>
+          <p>ProCare Hub - NDIS Provider Management</p>
+        </div>
+        
+        <div class="meta">
+          <span>Generated: ${new Date().toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+          <span>Total Shifts: ${shifts.length}</span>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Client</th>
+              <th>Staff</th>
+              <th>Service</th>
+              <th>Duration</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${shifts.map(shift => `
+              <tr>
+                <td>${shift.shift_date}</td>
+                <td>${shift.start_time} - ${shift.end_time}</td>
+                <td>${shift.client_name}</td>
+                <td>${shift.staff_name}</td>
+                <td>${shift.service_type}</td>
+                <td>${shift.duration_hours}h</td>
+                <td><span class="status status-${shift.status}">${shift.status}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          <h3>Summary</h3>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-value">${shifts.length}</div>
+              <div class="summary-label">Total Shifts</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${shifts.reduce((acc, s) => acc + (s.duration_hours || 0), 0).toFixed(1)}h</div>
+              <div class="summary-label">Total Hours</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${shifts.filter(s => s.status === 'completed').length}</div>
+              <div class="summary-label">Completed</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${shifts.filter(s => s.status === 'scheduled').length}</div>
+              <div class="summary-label">Scheduled</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>ProCare Hub - Professional Care Management Platform</p>
+          <p>This document was automatically generated. For questions, contact your administrator.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Open print dialog
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load then print
+    setTimeout(() => {
+      printWindow.print();
+      // Don't close immediately to allow user to save as PDF
+    }, 500);
+
+    toast.success('PDF ready - Use "Save as PDF" in print dialog');
+  };
+
   const getStatusBadge = (status) => {
     const styles = {
       scheduled: 'bg-blue-50 text-blue-700 border-blue-100',
@@ -177,13 +341,34 @@ const Rostering = () => {
           <h1 className="text-4xl font-manrope font-bold text-primary-900 mb-2">Rostering</h1>
           <p className="text-slate-600">Schedule and manage staff shifts</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button data-testid="schedule-shift-button">
-              <Plus className="w-4 h-4 mr-2" />
-              Schedule Shift
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-3">
+          {/* Export Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" data-testid="export-roster-button">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportToExcel} className="cursor-pointer">
+                <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
+                Export to Excel (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportToPDF} className="cursor-pointer">
+                <FileText className="w-4 h-4 mr-2 text-red-600" />
+                Export to PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button data-testid="schedule-shift-button">
+                <Plus className="w-4 h-4 mr-2" />
+                Schedule Shift
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Schedule New Shift</DialogTitle>
@@ -307,6 +492,7 @@ const Rostering = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card className="border-slate-100 shadow-sm">
