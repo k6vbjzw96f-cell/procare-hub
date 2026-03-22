@@ -165,20 +165,30 @@ class Staff(BaseModel):
     full_name: str
     email: EmailStr
     phone: Optional[str] = None
-    position: str
+    position: Optional[str] = None  # Made optional for legacy data
+    role: Optional[str] = None  # Legacy field name
+    employment_type: Optional[str] = None
+    start_date: Optional[str] = None
     certifications: List[str] = []
+    cert_expiries: Optional[dict] = None
+    availability: Optional[dict] = None
     screening_status: str = "pending"
     screening_expiry: Optional[str] = None
     status: str = "active"
     hourly_rate: float = 0.0
     photo_url: Optional[str] = None
+    is_demo: bool = False
+    user_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class StaffCreate(BaseModel):
     full_name: str
     email: EmailStr
     phone: Optional[str] = None
-    position: str
+    position: Optional[str] = None
+    role: Optional[str] = None
+    employment_type: Optional[str] = None
+    start_date: Optional[str] = None
     certifications: List[str] = []
     hourly_rate: float = 0.0
 
@@ -580,14 +590,34 @@ class CompanySettingsUpdate(BaseModel):
     bank_account_number: Optional[str] = None
 
 class DashboardStats(BaseModel):
-    total_clients: int
-    active_clients: int
-    total_staff: int
-    active_staff: int
-    upcoming_shifts: int
-    pending_invoices: int
-    open_compliance_issues: int
-    total_revenue: float
+    # Admin/Coordinator stats
+    total_clients: int = 0
+    active_clients: int = 0
+    total_staff: int = 0
+    active_staff: int = 0
+    upcoming_shifts: int = 0
+    pending_invoices: int = 0
+    open_compliance_issues: int = 0
+    total_revenue: float = 0
+    pending_amount: float = 0
+    compliance_issues: int = 0
+    recent_activity: List[dict] = []
+    # Support Worker stats
+    todays_shifts: int = 0
+    weekly_hours: float = 0
+    my_clients: int = 0
+    pending_tasks: int = 0
+    upcoming_shifts_list: List[dict] = []
+    notifications: List[dict] = []
+    # Participant stats
+    upcoming_appointments: int = 0
+    active_goals: int = 0
+    support_workers: int = 0
+    core_used: float = 0
+    capacity_used: float = 0
+    capital_used: float = 0
+    goals: List[dict] = []
+    support_team: List[dict] = []
 
 class Vehicle(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1780,10 +1810,24 @@ async def get_shifts(current_user: User = Depends(get_current_user)):
         query = {"staff_id": current_user.id}
     
     shifts = await db.shifts.find(query, {"_id": 0}).to_list(1000)
+    normalized_shifts = []
     for shift in shifts:
-        if isinstance(shift['created_at'], str):
+        if isinstance(shift.get('created_at'), str):
             shift['created_at'] = datetime.fromisoformat(shift['created_at'])
-    return shifts
+        # Normalize date field to shift_date for legacy data
+        if 'date' in shift and 'shift_date' not in shift:
+            shift['shift_date'] = shift.pop('date')
+        # Calculate duration_hours if not present
+        if 'duration_hours' not in shift:
+            try:
+                start = datetime.strptime(shift.get('start_time', '00:00'), '%H:%M')
+                end = datetime.strptime(shift.get('end_time', '00:00'), '%H:%M')
+                duration = (end - start).seconds / 3600
+                shift['duration_hours'] = duration if duration > 0 else 4.0
+            except:
+                shift['duration_hours'] = 4.0
+        normalized_shifts.append(shift)
+    return normalized_shifts
 
 @api_router.get("/shifts/{shift_id}", response_model=Shift)
 async def get_shift(shift_id: str, current_user: User = Depends(get_current_user)):
@@ -1794,8 +1838,20 @@ async def get_shift(shift_id: str, current_user: User = Depends(get_current_user
     if current_user.role == "support_worker" and shift['staff_id'] != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if isinstance(shift['created_at'], str):
+    if isinstance(shift.get('created_at'), str):
         shift['created_at'] = datetime.fromisoformat(shift['created_at'])
+    # Normalize date field to shift_date for legacy data
+    if 'date' in shift and 'shift_date' not in shift:
+        shift['shift_date'] = shift.pop('date')
+    # Calculate duration_hours if not present
+    if 'duration_hours' not in shift:
+        try:
+            start = datetime.strptime(shift.get('start_time', '00:00'), '%H:%M')
+            end = datetime.strptime(shift.get('end_time', '00:00'), '%H:%M')
+            duration = (end - start).seconds / 3600
+            shift['duration_hours'] = duration if duration > 0 else 4.0
+        except:
+            shift['duration_hours'] = 4.0
     return Shift(**shift)
 
 @api_router.put("/shifts/{shift_id}", response_model=Shift)
@@ -3344,32 +3400,146 @@ async def mark_all_notifications_read(current_user: User = Depends(get_current_u
 # Dashboard Routes
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
+    from datetime import datetime, timedelta
+    today = datetime.now().strftime("%Y-%m-%d")
+    week_start = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    
+    # Base stats for all roles
     total_clients = await db.clients.count_documents({})
     active_clients = await db.clients.count_documents({"status": "active"})
     total_staff = await db.staff.count_documents({})
     active_staff = await db.staff.count_documents({"status": "active"})
-    
-    if current_user.role == "support_worker":
-        upcoming_shifts = await db.shifts.count_documents({"staff_id": current_user.id, "status": "scheduled"})
-    else:
-        upcoming_shifts = await db.shifts.count_documents({"status": "scheduled"})
-    
     pending_invoices = await db.invoices.count_documents({"status": "draft"})
     open_compliance = await db.compliance.count_documents({"status": "open"})
     
-    invoices = await db.invoices.find({"status": "paid"}, {"_id": 0}).to_list(1000)
-    total_revenue = sum(inv.get('total_amount', 0) for inv in invoices)
+    # Calculate pending amount
+    pending_inv = await db.invoices.find({"status": "draft"}, {"_id": 0, "total_amount": 1}).to_list(1000)
+    pending_amount = sum(inv.get('total_amount', 0) for inv in pending_inv)
     
-    return DashboardStats(
+    # Calculate total revenue
+    paid_invoices = await db.invoices.find({"status": "paid"}, {"_id": 0, "total_amount": 1}).to_list(1000)
+    total_revenue = sum(inv.get('total_amount', 0) for inv in paid_invoices)
+    
+    # Get recent activity for admin dashboard
+    recent_activity = []
+    recent_shifts = await db.shifts.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
+    for shift in recent_shifts:
+        recent_activity.append({
+            "description": f"Shift scheduled for {shift.get('client_name', 'Unknown')}",
+            "time": shift.get('shift_date', 'Recently')
+        })
+    
+    result = DashboardStats(
         total_clients=total_clients,
         active_clients=active_clients,
         total_staff=total_staff,
         active_staff=active_staff,
-        upcoming_shifts=upcoming_shifts,
         pending_invoices=pending_invoices,
         open_compliance_issues=open_compliance,
-        total_revenue=total_revenue
+        compliance_issues=open_compliance,
+        total_revenue=total_revenue,
+        pending_amount=pending_amount,
+        recent_activity=recent_activity
     )
+    
+    # Role-specific data
+    if current_user.role == "support_worker":
+        # Get staff record linked to this user
+        staff = await db.staff.find_one({"user_id": current_user.id}, {"_id": 0})
+        staff_id = staff.get("id") if staff else current_user.id
+        
+        # Today's shifts
+        todays_shifts = await db.shifts.count_documents({
+            "staff_id": staff_id, 
+            "shift_date": today
+        })
+        
+        # Weekly hours from hour logs
+        hour_logs = await db.hour_logs.find({
+            "staff_id": staff_id,
+            "log_date": {"$gte": week_start}
+        }, {"_id": 0}).to_list(100)
+        weekly_hours = sum(log.get('total_hours', 0) for log in hour_logs)
+        
+        # My clients (unique clients from shifts)
+        my_shifts = await db.shifts.find({"staff_id": staff_id}, {"_id": 0, "client_id": 1}).to_list(1000)
+        my_client_ids = list(set(s.get('client_id') for s in my_shifts if s.get('client_id')))
+        my_clients = len(my_client_ids)
+        
+        # Pending tasks (case notes that need attention)
+        pending_tasks = await db.case_notes.count_documents({
+            "staff_id": staff_id,
+            "status": "draft"
+        })
+        
+        # Upcoming shifts list
+        upcoming_shifts_list = await db.shifts.find({
+            "staff_id": staff_id,
+            "shift_date": {"$gte": today},
+            "status": {"$in": ["scheduled", "confirmed"]}
+        }, {"_id": 0}).sort("shift_date", 1).to_list(10)
+        
+        result.todays_shifts = todays_shifts
+        result.weekly_hours = round(weekly_hours, 1)
+        result.my_clients = my_clients
+        result.pending_tasks = pending_tasks
+        result.upcoming_shifts = len(upcoming_shifts_list)
+        result.upcoming_shifts_list = upcoming_shifts_list
+        result.notifications = []
+        
+    elif current_user.role == "participant":
+        # Get client record linked to this user
+        client = await db.clients.find_one({"user_id": current_user.id}, {"_id": 0})
+        client_id = client.get("id") if client else None
+        
+        if client_id:
+            # Upcoming appointments
+            upcoming_appointments = await db.shifts.count_documents({
+                "client_id": client_id,
+                "shift_date": {"$gte": today},
+                "status": {"$in": ["scheduled", "confirmed"]}
+            })
+            
+            # Active goals
+            goals = await db.goals.find({"client_id": client_id}, {"_id": 0}).to_list(100)
+            active_goals = len([g for g in goals if g.get('status') == 'in_progress'])
+            
+            # Support workers assigned
+            my_shifts = await db.shifts.find({"client_id": client_id}, {"_id": 0, "staff_id": 1}).to_list(1000)
+            support_worker_ids = list(set(s.get('staff_id') for s in my_shifts if s.get('staff_id')))
+            support_workers = len(support_worker_ids)
+            
+            # Get support team details
+            support_team = []
+            for sw_id in support_worker_ids[:5]:
+                staff = await db.staff.find_one({"id": sw_id}, {"_id": 0, "full_name": 1, "role": 1})
+                if staff:
+                    support_team.append(staff)
+            
+            # Funding utilization
+            funding = await db.funding.find_one({"client_id": client_id}, {"_id": 0})
+            if funding:
+                core_budget = funding.get('core_support_budget', 0)
+                core_spent = funding.get('core_support_spent', 0)
+                capacity_budget = funding.get('capacity_building_budget', 0)
+                capacity_spent = funding.get('capacity_building_spent', 0)
+                capital_budget = funding.get('capital_support_budget', 0)
+                capital_spent = funding.get('capital_support_spent', 0)
+                
+                result.core_used = round((core_spent / core_budget * 100) if core_budget > 0 else 0, 1)
+                result.capacity_used = round((capacity_spent / capacity_budget * 100) if capacity_budget > 0 else 0, 1)
+                result.capital_used = round((capital_spent / capital_budget * 100) if capital_budget > 0 else 0, 1)
+            
+            result.upcoming_appointments = upcoming_appointments
+            result.active_goals = active_goals
+            result.support_workers = support_workers
+            result.goals = goals[:5]
+            result.support_team = support_team
+    else:
+        # Admin/Coordinator
+        result.upcoming_shifts = await db.shifts.count_documents({"status": "scheduled"})
+    
+    return result
 
 # Reports Routes
 @api_router.get("/reports/service-delivery")
