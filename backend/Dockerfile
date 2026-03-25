@@ -4,9 +4,14 @@ RUN apt-get update && apt-get install -y gcc libffi-dev && rm -rf /var/lib/apt/l
 
 WORKDIR /app
 
-COPY . .
+# Copy requirements first
+COPY requirements.txt ./requirements.txt
 
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY server.py ./server.py
 
 ENV PORT=8000
 EXPOSE 8000
