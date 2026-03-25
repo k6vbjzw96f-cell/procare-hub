@@ -1,0 +1,15 @@
+app = "procare-hub-backend"
+primary_region = "syd"
+
+[build]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[env]
+  DB_NAME = "procare_hub"
+  CORS_ORIGINS = "*"
