@@ -4,8 +4,9 @@ RUN apt-get update && apt-get install -y gcc libffi-dev && rm -rf /var/lib/apt/l
 
 WORKDIR /app
 
-# Copy everything from the current directory (backend folder)
-COPY . .
+# Copy all files
+COPY server.py .
+COPY requirements.txt .
 
 # Install requirements
 RUN pip install --no-cache-dir -r requirements.txt
